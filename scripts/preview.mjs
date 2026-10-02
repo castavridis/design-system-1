@@ -8,7 +8,7 @@
  * and lays out the 49 semantic roles (light ‖ dark) plus the tonal reference
  * ramps. Open the file directly — nothing is fetched.
  */
-import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
+import { copyFileSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 
 const registry = JSON.parse(readFileSync(new URL('../registry.json', import.meta.url), 'utf8'))
 const md3 = registry.items.find((i) => i.name === 'md3')
@@ -111,8 +111,13 @@ const html = `<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>pmndrs design system — palette</title>
   <style>
+    /* Geist, from the geist package — copied next to the page below, so nothing is fetched. */
+    @font-face { font-family: 'Geist'; src: url('fonts/Geist-Variable.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
+    @font-face { font-family: 'Geist Mono'; src: url('fonts/GeistMono-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
     * { box-sizing: border-box; }
-    body { margin: 0; font: 14px/1.4 ui-sans-serif, system-ui, sans-serif; background: #0e1116; color: #e6e6e6; }
+    body { margin: 0; font: 400 14px/1.4 'Geist', ui-sans-serif, system-ui, sans-serif; background: #0e1116; color: #e6e6e6; }
+    h1, h2, h3 { font-weight: 900; }
+    code, kbd, pre, samp, .hex, .ref { font-family: 'Geist Mono', ui-monospace, monospace; font-weight: 400; }
     header { padding: 32px 40px 8px; }
     header h1 { margin: 0 0 4px; font-size: 20px; }
     header p { margin: 0; color: #9aa4b2; }
@@ -152,5 +157,12 @@ const html = `<!doctype html>
 
 const out = new URL('../demo/palette.html', import.meta.url)
 mkdirSync(new URL('./', out), { recursive: true })
+
+// The fonts the page uses: Geist (variable: Regular 400 for body, Black 900 for headlines) and Mono Regular (code).
+const fonts = new URL('../node_modules/geist/dist/fonts/', import.meta.url)
+mkdirSync(new URL('./fonts/', out), { recursive: true })
+for (const file of ['geist-sans/Geist-Variable.woff2', 'geist-mono/GeistMono-Regular.woff2']) {
+  copyFileSync(new URL(file, fonts), new URL(`./fonts/${file.split('/')[1]}`, out))
+}
 writeFileSync(out, html)
 console.log(`✔ wrote demo/palette.html (${sysRoles.length} roles, ${Object.keys(tonal).length} tonal ramps)`)
