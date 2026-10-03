@@ -51,15 +51,21 @@ const BRAND = {
   ],
 }
 
-// Neutral-1/2 never blend: their ramps are redrawn from the exact hex either way.
-const seedFor = (blend) => {
-  const { source, accents, neutrals, ...rest } = BRAND
+// The primaries the page can switch between: each brand hue's pure hex as the
+// seed, lime first since it is the one that ships. Only a preview — the
+// published palette keeps `pmndrsMtb.source`.
+const PRIMARY_NAMES = { 'accent-7': 'Lime', 'accent-1': 'Purple', 'accent-2': 'Red', 'accent-3': 'Orange', 'accent-4': 'Yellow', 'accent-5': 'Teal', 'accent-6': 'Blue' }
+const PRIMARIES = Object.keys(PRIMARY_NAMES).map((key) => [key, PRIMARY_NAMES[key], Object.fromEntries(BRAND.accents)[key]])
+
+// Neutral-1/2 never blend: they are shades of the neutral ramp either way.
+const seedFor = (blend, source = BRAND.source) => {
+  const { accents, neutrals, ...rest } = BRAND
   const customColors = [...accents.map(([name, hex]) => ({ name, hex, blend })), ...neutrals.map(([name, hex]) => ({ name, hex, blend: false }))]
-  return { source, ...rest, customColors }
+  return { ...rest, source, customColors }
 }
-const buildTheme = (blend) => {
-  const { source, ...rest } = seedFor(blend)
-  return builder(source, rest)
+const buildTheme = (blend, source) => {
+  const { source: seed, ...rest } = seedFor(blend, source)
+  return builder(seed, rest)
 }
 
 // --- parse / resolve helpers ------------------------------------------------
@@ -115,9 +121,9 @@ const deltaE = (a, b) => {
 const customNames = new Set([...BRAND.accents, ...BRAND.neutrals].map(([n]) => n))
 
 // Build the render model for one blend mode.
-const model = (blend) => {
-  const css = buildTheme(blend).toCss()
-  const overrides = overridePalettes(seedFor(blend))
+const model = (blend, source = BRAND.source) => {
+  const css = buildTheme(blend, source).toCss()
+  const overrides = overridePalettes(seedFor(blend, source))
   const blocks = parseBlocks(css)
   const rootBlock = overrideCssBlock(blocks[':root'], overrides)
   const darkBlock = overrideCssBlock(blocks['.dark'], overrides)
@@ -186,7 +192,7 @@ const model = (blend) => {
   const nearestIn = (authored, ramp) =>
     ramp.reduce((best, t) => { const de = deltaE(authored, t.hex); return de < best.de ? { tone: t.tone, hex: t.hex, de } : best }, { de: Infinity })
   const nearest = [
-    { label: 'Primary', authored: BRAND.source, ...nearestIn(BRAND.source, ordered.primary) },
+    { label: 'Primary', authored: source, ...nearestIn(source, ordered.primary) },
     ...BRAND.accents.map(([name], i) => ({ label: `Accent ${i + 1}`, authored: srcOf[name], ...nearestIn(srcOf[name], ordered[name]) })),
     ...BRAND.neutrals.map(([name], i) => ({ label: `Neutral ${i + 1}`, authored: neutralSrc[name], ...nearestIn(neutralSrc[name], ordered[name]) })),
   ].map((n) => ({ ...n, de: Math.round(n.de) }))
@@ -194,7 +200,8 @@ const model = (blend) => {
   return { groups, accents, neutrals, tonal: ordered, nearest }
 }
 
-const data = { harmonized: model(true), exact: model(false) }
+// One model per primary × fidelity: 7 × 2, all computed here so the page needs no builder.
+const data = Object.fromEntries(PRIMARIES.map(([key, , hex]) => [key, { harmonized: model(true, hex), exact: model(false, hex) }]))
 
 // The four SVGs the `logo` registry item installs, in the order it lists them.
 const LOGOS = [
@@ -228,6 +235,7 @@ const html = `<!doctype html>
     main { padding: 8px 40px 64px; }
     h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 36px 0 12px; }
     .toggle { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 14px 40px; background: var(--bg); backdrop-filter: blur(6px); border-bottom: 1px solid var(--border); }
+    .toggle button .chip { display: inline-block; vertical-align: -2px; margin-right: 6px; }
     .toggle button { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--fg); cursor: pointer; }
     .toggle button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
     .toggle .grp-label { font-size: 12px; color: var(--muted); }
@@ -271,9 +279,12 @@ const html = `<!doctype html>
 <body>
   <header>
     <h1>pmndrs design system — brand palette</h1>
-    <p>Computed live from the seed (lime-green primary + 7 accents + 2 neutrals, vibrant scheme; neutrals at chroma 2) · toggle fidelity and light/dark below</p>
+    <p>Computed live from the seed (7 accents + 2 neutrals, vibrant scheme; neutrals at chroma 2) · try each brand hue as the primary, toggle fidelity and light/dark below</p>
   </header>
   <div class="toggle">
+    <span class="grp-label">Primary:</span>
+    ${PRIMARIES.map(([key, name, hex]) => `<button id="p-${key}" aria-pressed="${key === 'accent-7'}"><span class="chip" style="background:${hex}"></span>${name}</button>`).join('\n    ')}
+    <span class="sep"></span>
     <span class="grp-label">Fidelity:</span>
     <button id="t-harmonized" aria-pressed="true">Harmonized</button>
     <button id="t-exact" aria-pressed="false">Exact</button>
@@ -297,7 +308,9 @@ const html = `<!doctype html>
     const DATA = JSON.parse(document.getElementById('data').textContent)
     // Two independent axes: fidelity (harmonized or exact) picks the dataset;
     // view (both, light or dark) picks how each role is shown and themes the page.
-    const state = { fidelity: 'harmonized', view: 'both' }
+    // A third axis picks the primary: each brand hue's pure hex as the seed.
+    const state = { primary: 'accent-7', fidelity: 'harmonized', view: 'both' }
+    const PRIMARIES = ${JSON.stringify(PRIMARIES)}
 
     const ink = (hex) => {
       const h = hex.replace('#', '')
@@ -322,7 +335,7 @@ const html = `<!doctype html>
     const pairStyle = () => (state.view === 'both' ? '' : 'grid-template-columns:1fr')
 
     function render() {
-      const d = DATA[state.fidelity]
+      const d = DATA[state.primary][state.fidelity]
       let html = ''
 
       html += '<h2>Brand colours → nearest ramp step</h2>'
@@ -385,7 +398,7 @@ const html = `<!doctype html>
     function theme() {
       const root = document.documentElement.style
       if (state.view === 'both') { for (const k in DEFAULTS) root.setProperty(k, DEFAULTS[k]); return }
-      const d = DATA[state.fidelity]
+      const d = DATA[state.primary][state.fidelity]
       for (const [v, role] of Object.entries(ROLE_FOR)) { const r = find(d, role); if (r) root.setProperty(v, r[state.view]) }
     }
 
@@ -394,6 +407,7 @@ const html = `<!doctype html>
       exact: 'blend: false — hues kept true to the authored hex',
     }
     const groups = {
+      primary: Object.fromEntries(PRIMARIES.map(([key]) => [key, 'p-' + key])),
       fidelity: { harmonized: 't-harmonized', exact: 't-exact' },
       view: { both: 'm-both', light: 'm-light', dark: 'm-dark' },
     }
@@ -401,7 +415,8 @@ const html = `<!doctype html>
       for (const [g, opts] of Object.entries(groups)) {
         for (const [val, id] of Object.entries(opts)) document.getElementById(id).setAttribute('aria-pressed', String(state[g] === val))
       }
-      document.getElementById('toggle-note').textContent = notes[state.fidelity]
+      const [, name, hex] = PRIMARIES.find(([key]) => key === state.primary)
+      document.getElementById('toggle-note').textContent = name + ' ' + hex + ' as the seed · ' + notes[state.fidelity]
       theme()
       render()
     }
@@ -435,4 +450,4 @@ mkdirSync(new URL('./logos/', out), { recursive: true })
 for (const [file] of LOGOS) copyFileSync(new URL(`../assets/${file}`, import.meta.url), new URL(`./logos/${file}`, out))
 writeFileSync(out, html)
 const n = BRAND.accents.length
-console.log(`✔ wrote demo/palette.html (lime-green primary, ${n} accents, ${BRAND.neutrals.length} neutrals, harmonized + exact, ${LOGOS.length} logos)`)
+console.log(`✔ wrote demo/palette.html (${PRIMARIES.length} primaries, ${n} accents, ${BRAND.neutrals.length} neutrals, harmonized + exact, ${LOGOS.length} logos)`)
