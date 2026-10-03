@@ -23,7 +23,7 @@
  */
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { builder } from 'material-theme-builder'
-import { overrideCssBlock, overridePalettes, primaryModePalettes } from './palette-overrides.mjs'
+import { contrastCustomColours, overrideCssBlock, overridePalettes, primaryModePalettes } from './palette-overrides.mjs'
 
 // --- brand seed (mirror of pmndrsMtb in registry/md3-base/md3.ts) -----------
 const BRAND = {
@@ -127,15 +127,20 @@ const schemesFor = (seed) => {
   const { source, ...rest } = seed
   const blocks = parseBlocks(builder(source, rest).toCss())
   const overrides = overridePalettes(seed)
-  const rootBlock = overrideCssBlock(blocks[':root'], overrides)
-  const darkBlock = overrideCssBlock(blocks['.dark'], overrides)
+  // Above standard contrast some roles are raw colours between shades; the
+  // overrides need the contrast and the mode to redraw those at their tone.
+  const light = { source, scheme: seed.scheme, contrast: seed.contrast, isDark: false }
+  const dark = { ...light, isDark: true }
+  // The builder gives custom colours no contrast; these give them the primary's.
+  const rootBlock = contrastCustomColours(overrideCssBlock(blocks[':root'], overrides, light), seed, overrides, light)
+  const darkBlock = contrastCustomColours(overrideCssBlock(blocks['.dark'], overrides, dark), seed, overrides, dark)
   const tint = primaryModePalettes({ source })
-  const lightPrimary = overrideCssBlock(rootBlock, tint)
+  const lightPrimary = overrideCssBlock(rootBlock, tint, light)
   return {
     light: { ...rootBlock },
     dark: { ...rootBlock, ...darkBlock },
     lightPrimary,
-    darkPrimary: { ...lightPrimary, ...overrideCssBlock(darkBlock, tint) },
+    darkPrimary: { ...lightPrimary, ...overrideCssBlock(darkBlock, tint, dark) },
   }
 }
 
@@ -162,9 +167,9 @@ const rampOf = (block, name) =>
 const nearestIn = (authored, ramp) =>
   ramp.reduce((best, t) => { const de = deltaE(authored, t.hex); return de < best.de ? { tone: t.tone, hex: t.hex, de } : best }, { de: Infinity })
 
-// Build the render model for one blend mode.
-const model = (blend, source = BRAND.source) => {
-  const schemes = schemesFor(seedFor(blend, source))
+// Build the render model for one blend mode at one contrast level.
+const model = (blend, source = BRAND.source, contrast = BRAND.contrast) => {
+  const schemes = schemesFor(seedFor(blend, source, { contrast }))
   const { light, lightPrimary } = schemes
 
   const sysKeys = Object.keys(light).filter((k) => k.startsWith('--md-sys-color-'))
@@ -238,8 +243,16 @@ const model = (blend, source = BRAND.source) => {
   return { groups, accents, neutrals, tonal: ordered, tonalPrimary, nearest }
 }
 
-// One model per primary × fidelity: 7 × 2, all computed here so the page needs no builder.
-const data = Object.fromEntries(PRIMARIES.map(([key, , hex]) => [key, { harmonized: model(true, hex), exact: model(false, hex) }]))
+// MD3's three contrast levels. Standard is what the registry ships.
+const CONTRASTS = [['standard', 0, 'Standard'], ['medium', 0.5, 'Medium'], ['high', 1, 'High']]
+
+// One model per primary × contrast × fidelity: 7 × 3 × 2, all computed here so the page needs no builder.
+const data = Object.fromEntries(
+  PRIMARIES.map(([key, , hex]) => [
+    key,
+    Object.fromEntries(CONTRASTS.map(([level, contrast]) => [level, { harmonized: model(true, hex, contrast), exact: model(false, hex, contrast) }])),
+  ])
+)
 
 /**
  * Secondary and tertiary, per choice: `auto` (MD3 derives them from the
@@ -251,8 +264,8 @@ const data = Object.fromEntries(PRIMARIES.map(([key, , hex]) => [key, { harmoniz
  * them. Seeded families are also primary-independent, but `auto` is not, and
  * keeping one shape per primary is simpler than special-casing it.
  */
-const familyFor = (source, which, hex) => {
-  const schemes = schemesFor(seedFor(false, source, hex ? { [which]: hex } : {}))
+const familyFor = (source, which, hex, contrast) => {
+  const schemes = schemesFor(seedFor(false, source, { contrast, ...(hex ? { [which]: hex } : {}) }))
   const pattern = new RegExp(`^--md-sys-color-(on-)?${which}(-|$)`)
   const roles = Object.keys(schemes.light).filter((k) => pattern.test(k)).map(roleIn(schemes))
   const ramp = rampOf(schemes.light, which)
@@ -262,18 +275,27 @@ const ROLE_SEEDS = Object.fromEntries(
   PRIMARIES.map(([key, , primaryHex]) => [
     key,
     Object.fromEntries(
-      ['secondary', 'tertiary'].map((which) => [
-        which,
-        { auto: familyFor(primaryHex, which), ...Object.fromEntries(PRIMARIES.map(([seedKey, , hex]) => [seedKey, familyFor(primaryHex, which, hex)])) },
+      CONTRASTS.map(([level, contrast]) => [
+        level,
+        Object.fromEntries(
+          ['secondary', 'tertiary'].map((which) => [
+            which,
+            {
+              auto: familyFor(primaryHex, which, undefined, contrast),
+              ...Object.fromEntries(PRIMARIES.map(([seedKey, , hex]) => [seedKey, familyFor(primaryHex, which, hex, contrast)])),
+            },
+          ])
+        ),
       ])
     ),
   ])
 )
-for (const families of Object.values(ROLE_SEEDS)) for (const family of Object.values(families)) for (const f of Object.values(family)) if (f.nearest) f.nearest.de = Math.round(f.nearest.de)
+for (const levels of Object.values(ROLE_SEEDS))
+  for (const families of Object.values(levels)) for (const family of Object.values(families)) for (const f of Object.values(family)) if (f.nearest) f.nearest.de = Math.round(f.nearest.de)
 
 // The page's own chrome comes from these roles — the same map the script uses.
 const ROLE_FOR = { '--bg': 'surface', '--fg': 'on-surface', '--panel': 'surface-container-high', '--border': 'outline-variant', '--muted': 'on-surface-variant' }
-const shippedRole = (name) => Object.values(data['accent-7'].exact.groups).flat().find((r) => r.name === name)
+const shippedRole = (name) => Object.values(data['accent-7'].standard.exact.groups).flat().find((r) => r.name === name)
 const chromeCss = (mode) => Object.entries(ROLE_FOR).map(([v, role]) => `${v}: ${shippedRole(role)[mode]};`).join(' ')
 
 // The four SVGs the `logo` registry item installs, in the order it lists them.
@@ -383,6 +405,9 @@ const html = `<!doctype html>
     <button id="t-harmonized" aria-pressed="false">Harmonized</button>
     <button id="t-exact" aria-pressed="true">Exact</button>
     <span class="sep"></span>
+    <span class="grp-label">Contrast:</span>
+    ${CONTRASTS.map(([level, , label]) => `<button id="c-${level}" aria-pressed="${level === 'standard'}">${label}</button>`).join('\n    ')}
+    <span class="sep"></span>
     <span class="grp-label">Mode:</span>
     <button id="m-both" aria-pressed="true">Both</button>
     <button id="m-light" aria-pressed="false">Light</button>
@@ -416,11 +441,11 @@ const html = `<!doctype html>
     // A third axis picks the primary: each brand hue's pure hex as the seed.
     // Secondary and tertiary are 'auto' (MD3 derives them from the primary) or a
     // brand hue's key; with Unique on, no two of the three share a brand hue.
-    const state = { primary: 'accent-7', secondary: 'auto', tertiary: 'auto', unique: true, fidelity: 'exact', view: 'both' }
+    const state = { primary: 'accent-7', secondary: 'auto', tertiary: 'auto', unique: true, fidelity: 'exact', contrast: 'standard', view: 'both' }
     const PRIMARIES = ${JSON.stringify(PRIMARIES)}
     const ROLE_SEEDS = JSON.parse(document.getElementById('role-seeds').textContent)
     const hueName = (key) => (key === 'auto' ? 'Auto' : PRIMARIES.find(([k]) => k === key)[1])
-    const familyOf = (which) => ROLE_SEEDS[state.primary][which][state[which]]
+    const familyOf = (which) => ROLE_SEEDS[state.primary][state.contrast][which][state[which]]
 
     const ink = (hex) => {
       const h = hex.replace('#', '')
@@ -453,7 +478,7 @@ const html = `<!doctype html>
     const pairStyle = () => (VIEWS[state.view].length === 2 ? '' : 'grid-template-columns:1fr')
 
     function render() {
-      const d = DATA[state.primary][state.fidelity]
+      const d = DATA[state.primary][state.contrast][state.fidelity]
       let html = ''
 
       // Every role by name, for the scheme cards: MD3's own, the chosen secondary
@@ -574,7 +599,7 @@ const html = `<!doctype html>
       const root = document.documentElement.style
       const pair = VIEWS[state.view]
       const scheme = pair.length === 2 ? pair[prefersDark.matches ? 1 : 0] : pair[0]
-      const d = DATA[state.primary][state.fidelity]
+      const d = DATA[state.primary][state.contrast][state.fidelity]
       for (const [v, role] of Object.entries(ROLE_FOR)) { const r = find(d, role); if (r) root.setProperty(v, r[scheme]) }
     }
     prefersDark.addEventListener('change', theme)
@@ -608,6 +633,7 @@ const html = `<!doctype html>
       secondary: Object.fromEntries([['auto', 's-auto'], ...PRIMARIES.map(([key]) => [key, 's-' + key])]),
       tertiary: Object.fromEntries([['auto', 't-auto'], ...PRIMARIES.map(([key]) => [key, 't-' + key])]),
       fidelity: { harmonized: 't-harmonized', exact: 't-exact' },
+      contrast: { standard: 'c-standard', medium: 'c-medium', high: 'c-high' },
       view: { both: 'm-both', light: 'm-light', dark: 'm-dark', 'both-primary': 'm-both-primary', 'light-primary': 'm-light-primary', 'dark-primary': 'm-dark-primary' },
     }
     let lastMove = ''
@@ -625,6 +651,7 @@ const html = `<!doctype html>
         name + ' ' + hex + ' as the seed',
         'secondary ' + hueName(state.secondary) + ', tertiary ' + hueName(state.tertiary),
         notes[state.fidelity],
+        state.contrast === 'standard' ? '' : state.contrast + ' contrast',
         lastMove,
       ].filter(Boolean).join(' · ')
       theme()

@@ -22,8 +22,10 @@
  */
 import {
   argbFromHex,
+  Blend,
   Hct,
   hexFromArgb,
+  MaterialDynamicColors,
   SchemeContent,
   SchemeExpressive,
   SchemeFidelity,
@@ -98,20 +100,66 @@ export function overridePalettes({ source, scheme = 'tonalSpot', contrast = 0, n
 /** `--md-ref-palette-neutral-1-40` → `['neutral-1', 40]`. Greedy, so `neutral-10` is `neutral` tone 10. */
 const refPattern = /^--md-ref-palette-(.+)-(\d+)$/
 
+/** The MD3 roles drawn from each structural neutral ramp. */
+const NEUTRAL_ROLES = [
+  'background', 'on-background', 'surface', 'surface-dim', 'surface-bright',
+  'surface-container-lowest', 'surface-container-low', 'surface-container', 'surface-container-high', 'surface-container-highest',
+  'on-surface', 'inverse-surface', 'inverse-on-surface', 'scrim', 'shadow',
+]
+const NEUTRAL_VARIANT_ROLES = ['surface-variant', 'on-surface-variant', 'outline', 'outline-variant']
+
+const camel = (kebab) => kebab.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase())
+
+/**
+ * Which redrawn palette a `--md-sys-color-*` role is drawn from, and the MD3
+ * dynamic colour that fixes its tone — or null if it is not one of ours. A
+ * custom colour's four roles take the tones of the primary's four, which is
+ * how material-theme-builder lays them out.
+ */
+function roleSource(role, palettes) {
+  if (palettes.neutral && NEUTRAL_ROLES.includes(role)) return ['neutral', MaterialDynamicColors[camel(role)]]
+  if (palettes['neutral-variant'] && NEUTRAL_VARIANT_ROLES.includes(role)) return ['neutral-variant', MaterialDynamicColors[camel(role)]]
+  for (const name of Object.keys(palettes)) {
+    const m = role.match(new RegExp(`^(on-)?${name}(-container)?$`))
+    if (m && name !== 'neutral' && name !== 'neutral-variant') return [name, MaterialDynamicColors[camel(`${m[1] ?? ''}primary${m[2] ?? ''}`)]]
+  }
+  return null
+}
+
 /**
  * Redraws the shades of `palettes` in one parsed CSS block (`{ '--name': value }`),
  * returning a new block. Throws if a palette it was asked to redraw is absent,
  * so a rename upstream fails the build instead of silently shipping the old ramp.
+ *
+ * At standard contrast every role aliases a shade, so redrawing the shades is
+ * the whole job. At medium and high contrast, material-theme-builder writes
+ * roles whose tone falls between shades as raw hex — `on-surface-variant` at
+ * tone 25.9, say — which a shade redraw never reaches. Those need `context`
+ * (`{ source, scheme, contrast, isDark }`): the role's exact tone comes from
+ * the MD3 dynamic colour, the colour from the redrawn palette at that tone.
+ * Without it, a raw role in a redrawn family throws rather than shipping the
+ * old ramp's colour.
  */
-export function overrideCssBlock(block, palettes) {
+export function overrideCssBlock(block, palettes, context) {
   const seen = new Set()
+  let dynamicScheme
   const out = Object.fromEntries(
     Object.entries(block).map(([name, value]) => {
       const match = name.match(refPattern)
       const palette = match && palettes[match[1]]
-      if (!palette) return [name, value]
-      seen.add(match[1])
-      return [name, hexFromArgb(palette.tone(Number(match[2])))]
+      if (palette) {
+        seen.add(match[1])
+        return [name, hexFromArgb(palette.tone(Number(match[2])))]
+      }
+      const role = name.startsWith('--md-sys-color-') && !value.startsWith('var(') && name.slice('--md-sys-color-'.length)
+      const source = role && roleSource(role, palettes)
+      if (!source) return [name, value]
+      if (!context) throw new Error(`${name} is a raw colour (${value}) in a redrawn family; pass the contrast context to redraw it`)
+      const [family, dynamicColor] = source
+      if (!dynamicColor) throw new Error(`no MD3 dynamic colour for ${name}`)
+      const Scheme = schemes[context.scheme ?? 'tonalSpot']
+      dynamicScheme ??= new Scheme(Hct.fromInt(argbFromHex(context.source)), context.isDark, context.contrast ?? 0)
+      return [name, hexFromArgb(palettes[family].tone(dynamicColor.getTone(dynamicScheme)))]
     })
   )
   const missing = Object.keys(palettes).filter((name) => !seen.has(name))
@@ -163,4 +211,40 @@ export function primaryModePalettes({ source }) {
     neutral: TonalPalette.fromHueAndChroma(hue, PRIMARY_MODE_NEUTRAL_CHROMA),
     'neutral-variant': TonalPalette.fromHueAndChroma(hue, PRIMARY_MODE_NEUTRAL_VARIANT_CHROMA),
   }
+}
+
+/**
+ * Custom colours at medium and high contrast. material-theme-builder 5.0.0
+ * gives them no contrast at all: at every level an accent's four roles sit on
+ * shades 40 / 100 / 90 / 30, while the built-in primary's move (`primary` goes
+ * from tone 40 to ~18 at high contrast). This gives each custom colour the
+ * tones MD3 gives the primary's four roles at that level — at standard
+ * contrast those are the same 40 / 100 / 90 / 30, so it changes nothing there.
+ *
+ * Each colour is drawn from `palettes[name]` when it is one of ours (Neutral-1/2
+ * ride the neutral ramp), otherwise from its ramp rebuilt the way the builder
+ * builds it: the hex's hue (harmonized toward the source when `blend`) at the
+ * primary palette's chroma.
+ */
+export function contrastCustomColours(block, seed, palettes, { isDark }) {
+  const { source, scheme = 'tonalSpot', contrast = 0, customColors = [] } = seed
+  if (!contrast) return block
+  const Scheme = schemes[scheme]
+  const sourceArgb = argbFromHex(source)
+  const dynamicScheme = new Scheme(Hct.fromInt(sourceArgb), isDark, contrast)
+  const chroma = new Scheme(Hct.fromInt(sourceArgb), false, contrast).primaryPalette.chroma
+  const out = { ...block }
+  for (const { name, hex, blend } of customColors) {
+    const argb = blend ? Blend.harmonize(argbFromHex(hex), sourceArgb) : argbFromHex(hex)
+    const palette = palettes[name] ?? TonalPalette.fromHueAndChroma(Hct.fromInt(argb).hue, chroma)
+    for (const [role, dynamicColor] of [
+      [name, 'primary'],
+      [`on-${name}`, 'onPrimary'],
+      [`${name}-container`, 'primaryContainer'],
+      [`on-${name}-container`, 'onPrimaryContainer'],
+    ]) {
+      out[`--md-sys-color-${role}`] = hexFromArgb(palette.tone(MaterialDynamicColors[dynamicColor].getTone(dynamicScheme)))
+    }
+  }
+  return out
 }
