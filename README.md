@@ -61,6 +61,17 @@ Prefer the server one where there is a server: it keeps the palette code off the
 client. `<Mtb>` is for where there is no build to hook — a Storybook preview,
 say.
 
+## Logo
+
+```sh
+npx shadcn@latest add pmndrs/design-system/logo#v0.4.0
+```
+
+Four SVGs land in `public/pmndrs/`: the complete mark, the idle mark, a one-shot
+animation between them, and a looping loader. The animation is CSS inside the
+files, so a plain `<img>` plays it. Sources, PNGs included, are in
+[`assets/`](assets/).
+
 ## Authoring a block
 
 Always pin a ref — `pmndrs/design-system/md3#v0.4.0`. Refs are **not

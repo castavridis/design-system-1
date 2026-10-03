@@ -93,6 +93,26 @@ const items = [
     registryDependencies: [`pmndrs/design-system/md3-base#${version}`],
     palette: true,
   },
+  {
+    name: 'logo',
+    type: 'registry:item',
+    title: 'pmndrs logo',
+    description:
+      'The pmndrs logo as four SVGs in `public/pmndrs/`: the complete mark, the idle mark, a one-shot animation between them, and a looping loader.',
+    author: 'pmndrs',
+    /**
+     * `~/` is the project root. Without it shadcn prefixes `src/` in a src-dir
+     * project, and `src/public/` is not served.
+     *
+     * The PNGs stay out: an item carries its files as JSON strings, so binary
+     * content would arrive corrupted.
+     */
+    files: ['logo_complete.svg', 'logo_idle.svg', 'logo_animated.svg', 'logo_loading.svg'].map((file) => ({
+      path: `assets/${file}`,
+      type: 'registry:file',
+      target: `~/public/pmndrs/${file}`,
+    })),
+  },
 ]
 
 const registryUrl = new URL('../registry.json', import.meta.url)
@@ -104,7 +124,7 @@ const registryUrl = new URL('../registry.json', import.meta.url)
  * history and stays as written.
  */
 const docs = ['../README.md', '../.changeset/README.md']
-const installRef = /pmndrs\/design-system\/(md3|md3-base)#v\d+\.\d+\.\d+/g
+const installRef = /pmndrs\/design-system\/(md3|md3-base|logo)#v\d+\.\d+\.\d+/g
 
 /**
  * `toCss()` emits one flat `:root` and one flat `.dark` block, so this reads it

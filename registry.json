@@ -544,6 +544,36 @@
         }
       },
       "docs": "The colours are already working. The pmndrs palette is baked into the CSS this item writes, so there is nothing to mount, no provider, and no client JavaScript.\n\nTwo things to know:\n\n- **This is the item to depend on.** It pulls `md3-base` — the Tailwind `@theme` mapping, the shadcn remap and the seed — and adds the palette those point at.\n- If you want a palette other than the pmndrs one, install **`md3-base`** instead and compute your own. See its docs. Installing both means committing 252 declarations you immediately override."
+    },
+    {
+      "name": "logo",
+      "type": "registry:item",
+      "title": "pmndrs logo",
+      "description": "The pmndrs logo as four SVGs in `public/pmndrs/`: the complete mark, the idle mark, a one-shot animation between them, and a looping loader.",
+      "author": "pmndrs",
+      "files": [
+        {
+          "path": "assets/logo_complete.svg",
+          "type": "registry:file",
+          "target": "~/public/pmndrs/logo_complete.svg"
+        },
+        {
+          "path": "assets/logo_idle.svg",
+          "type": "registry:file",
+          "target": "~/public/pmndrs/logo_idle.svg"
+        },
+        {
+          "path": "assets/logo_animated.svg",
+          "type": "registry:file",
+          "target": "~/public/pmndrs/logo_animated.svg"
+        },
+        {
+          "path": "assets/logo_loading.svg",
+          "type": "registry:file",
+          "target": "~/public/pmndrs/logo_loading.svg"
+        }
+      ],
+      "docs": "Four SVGs, written to `public/pmndrs/`, so the site serves them at `/pmndrs/…`:\n\n- `logo_complete.svg` — the full mark\n- `logo_idle.svg` — the resting state, four concentric rings\n- `logo_animated.svg` — idle → complete once, in 0.73 s\n- `logo_loading.svg` — out to each corner and back, looping every 5.3 s\n\nUse them as images. The animation is CSS inside each file, so a plain `<img>` plays it, and so does `next/image` with `unoptimized`:\n\n```tsx\n<img src=\"/pmndrs/logo_loading.svg\" width={48} height={48} alt=\"Loading\" />\n```\n\nBoth animated files respect `prefers-reduced-motion`: `logo_animated.svg` shows the complete mark without moving, and `logo_loading.svg` holds it and fades gently, so it still reads as busy.\n\nEvery file paints its own black square background; there is no transparent variant yet. The PNGs live in the repo's `assets/` and are not part of this item.\n\nLogo by Mike Douges. _Placeholder — credit wording, link and licence still to be confirmed with Mike._"
     }
   ]
 }

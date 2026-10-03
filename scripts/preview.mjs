@@ -14,6 +14,9 @@
  * module, and this script can't import its `.ts`, so the values are duplicated —
  * keep the two in sync. The real `registry.json` is still produced by
  * `npm run build`; this is a viewer, not a second source of truth.
+ *
+ * The logo SVGs are copied from `assets/` next to the page, like the fonts, so
+ * it shows the same files the `logo` registry item installs.
  */
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { builder } from 'material-theme-builder'
@@ -167,6 +170,14 @@ const model = (blend) => {
 
 const data = { harmonized: model(true), exact: model(false) }
 
+// The four SVGs the `logo` registry item installs, in the order it lists them.
+const LOGOS = [
+  ['logo_complete.svg', 'Complete', 'The full mark'],
+  ['logo_idle.svg', 'Idle', 'The resting state'],
+  ['logo_animated.svg', 'Animated', 'Idle → complete, once'],
+  ['logo_loading.svg', 'Loading', 'Each corner and back, looping'],
+]
+
 // --- html -------------------------------------------------------------------
 const html = `<!doctype html>
 <html lang="en">
@@ -219,6 +230,16 @@ const html = `<!doctype html>
     .near-sw { height: 60px; display: flex; align-items: flex-end; justify-content: flex-end; padding: 6px 9px; font-weight: 900; font-size: 18px; font-variant-numeric: tabular-nums; }
     .near-meta { padding: 7px 9px; display: flex; flex-direction: column; gap: 3px; background: var(--panel); }
     .near-auth { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    /* Outside #app: render() rewrites that on every toggle, which would restart the animations. */
+    .logos { padding: 8px 40px 0; }
+    .logo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    .logo { margin: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+    .logo img { display: block; width: 100%; height: auto; aspect-ratio: 1; }
+    .logo figcaption { flex: 1; padding: 8px 10px; background: var(--panel); display: flex; flex-direction: column; gap: 2px; }
+    .logo .file { font-size: 11px; color: var(--muted); }
+    .logo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0 0; }
+    .logo-actions .legend { margin: 0; }
+    .logo-actions button { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--fg); cursor: pointer; }
   </style>
 </head>
 <body>
@@ -237,6 +258,13 @@ const html = `<!doctype html>
     <button id="m-dark" aria-pressed="false">Dark</button>
     <span class="note" id="toggle-note"></span>
   </div>
+  <section class="logos">
+    <h2>Logo (registry item <code>logo</code>)</h2>
+    <div class="logo-grid">
+      ${LOGOS.map(([file, label, note]) => `<figure class="logo"><img src="logos/${file}" alt="pmndrs logo, ${label.toLowerCase()}" width="600" height="600" /><figcaption><span class="lbl">${label}</span><span class="file">${note} · ${file}</span></figcaption></figure>`).join('\n      ')}
+    </div>
+    <p class="logo-actions"><button id="logo-replay">Replay</button><span class="legend">The animation is CSS inside each SVG, so a plain &lt;img&gt; plays it. Under reduced motion the one-shot holds still and the loader only fades.</span></p>
+  </section>
   <main id="app"></main>
   <script id="data" type="application/json">${JSON.stringify(data)}</script>
   <script>
@@ -346,6 +374,13 @@ const html = `<!doctype html>
       for (const [val, id] of Object.entries(opts)) document.getElementById(id).onclick = () => { state[g] = val; update() }
     }
     update()
+
+    // A fresh query string loads the SVG as a new document, so its animation starts over.
+    let replays = 0
+    document.getElementById('logo-replay').onclick = () => {
+      replays++
+      for (const img of document.querySelectorAll('.logo img')) img.src = img.src.split('?')[0] + '?' + replays
+    }
   </script>
 </body>
 </html>
@@ -360,6 +395,9 @@ mkdirSync(new URL('./fonts/', out), { recursive: true })
 for (const file of ['geist-sans/Geist-Variable.woff2', 'geist-mono/GeistMono-Regular.woff2']) {
   copyFileSync(new URL(file, fonts), new URL(`./fonts/${file.split('/')[1]}`, out))
 }
+// The logo SVGs, from assets/ — the same files the `logo` registry item installs.
+mkdirSync(new URL('./logos/', out), { recursive: true })
+for (const [file] of LOGOS) copyFileSync(new URL(`../assets/${file}`, import.meta.url), new URL(`./logos/${file}`, out))
 writeFileSync(out, html)
 const n = BRAND.accents.length
-console.log(`✔ wrote demo/palette.html (lime-green primary, ${n} accents, harmonized + exact)`)
+console.log(`✔ wrote demo/palette.html (lime-green primary, ${n} accents, harmonized + exact, ${LOGOS.length} logos)`)
