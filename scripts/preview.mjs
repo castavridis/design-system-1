@@ -58,14 +58,11 @@ const PRIMARY_NAMES = { 'accent-7': 'Lime', 'accent-1': 'Purple', 'accent-2': 'R
 const PRIMARIES = Object.keys(PRIMARY_NAMES).map((key) => [key, PRIMARY_NAMES[key], Object.fromEntries(BRAND.accents)[key]])
 
 // Neutral-1/2 never blend: they are shades of the neutral ramp either way.
-const seedFor = (blend, source = BRAND.source) => {
+// `extra` carries the optional secondary / tertiary seeds.
+const seedFor = (blend, source = BRAND.source, extra = {}) => {
   const { accents, neutrals, ...rest } = BRAND
   const customColors = [...accents.map(([name, hex]) => ({ name, hex, blend })), ...neutrals.map(([name, hex]) => ({ name, hex, blend: false }))]
-  return { ...rest, source, customColors }
-}
-const buildTheme = (blend, source) => {
-  const { source: seed, ...rest } = seedFor(blend, source)
-  return builder(seed, rest)
+  return { ...rest, source, customColors, ...extra }
 }
 
 // --- parse / resolve helpers ------------------------------------------------
@@ -120,35 +117,62 @@ const deltaE = (a, b) => {
 
 const customNames = new Set([...BRAND.accents, ...BRAND.neutrals].map(([n]) => n))
 
-// Build the render model for one blend mode.
-const model = (blend, source = BRAND.source) => {
-  const css = buildTheme(blend, source).toCss()
-  const overrides = overridePalettes(seedFor(blend, source))
-  const blocks = parseBlocks(css)
+/**
+ * The four schemes the page shows for one seed, as flat `{ '--name': value }`
+ * maps: light and dark as shipped (with the palette overrides), and Light /
+ * Dark (Primary), where neutral and neutral-variant are re-tinted by the
+ * primary's hue.
+ */
+const schemesFor = (seed) => {
+  const { source, ...rest } = seed
+  const blocks = parseBlocks(builder(source, rest).toCss())
+  const overrides = overridePalettes(seed)
   const rootBlock = overrideCssBlock(blocks[':root'], overrides)
   const darkBlock = overrideCssBlock(blocks['.dark'], overrides)
-  const light = { ...rootBlock }
-  const dark = { ...rootBlock, ...darkBlock }
-  // Light (Primary) / Dark (Primary): the same blocks with neutral and
-  // neutral-variant re-tinted by the primary's hue; everything else as shipped.
   const tint = primaryModePalettes({ source })
   const lightPrimary = overrideCssBlock(rootBlock, tint)
-  const darkPrimary = { ...lightPrimary, ...overrideCssBlock(darkBlock, tint) }
+  return {
+    light: { ...rootBlock },
+    dark: { ...rootBlock, ...darkBlock },
+    lightPrimary,
+    darkPrimary: { ...lightPrimary, ...overrideCssBlock(darkBlock, tint) },
+  }
+}
+
+// One role across the four schemes.
+const roleIn = ({ light, dark, lightPrimary, darkPrimary }) => (k) => ({
+  name: k.replace('--md-sys-color-', ''),
+  lightRef: light[k].match(/--md-ref-palette-([\w-]+)/)?.[1] ?? '',
+  darkRef: dark[k].match(/--md-ref-palette-([\w-]+)/)?.[1] ?? '',
+  light: resolve(light, light[k]),
+  dark: resolve(dark, dark[k]),
+  lightPrimary: resolve(lightPrimary, lightPrimary[k]),
+  darkPrimary: resolve(darkPrimary, darkPrimary[k]),
+})
+
+// One palette's shades, ascending by tone.
+const rampOf = (block, name) =>
+  Object.entries(block)
+    .map(([k, v]) => [k.match(/^--md-ref-palette-(.+)-(\d+)$/), v])
+    .filter(([m]) => m && m[1] === name)
+    .map(([m, hex]) => ({ tone: Number(m[2]), hex }))
+    .sort((a, b) => a.tone - b.tone)
+
+// For a brand colour, the step in a ramp closest to its authored hex.
+const nearestIn = (authored, ramp) =>
+  ramp.reduce((best, t) => { const de = deltaE(authored, t.hex); return de < best.de ? { tone: t.tone, hex: t.hex, de } : best }, { de: Infinity })
+
+// Build the render model for one blend mode.
+const model = (blend, source = BRAND.source) => {
+  const schemes = schemesFor(seedFor(blend, source))
+  const { light, lightPrimary } = schemes
 
   const sysKeys = Object.keys(light).filter((k) => k.startsWith('--md-sys-color-'))
 
   // Standard MD3 roles vs the named brand colours (and their on-/container).
   const isCustom = (name) => [...customNames].some((c) => name === c || name.startsWith(`${c}-`) || name === `on-${c}` || name.startsWith(`on-${c}-`))
 
-  const roleOf = (k) => ({
-    name: k.replace('--md-sys-color-', ''),
-    lightRef: light[k].match(/--md-ref-palette-([\w-]+)/)?.[1] ?? '',
-    darkRef: dark[k].match(/--md-ref-palette-([\w-]+)/)?.[1] ?? '',
-    light: resolve(light, light[k]),
-    dark: resolve(dark, dark[k]),
-    lightPrimary: resolve(lightPrimary, lightPrimary[k]),
-    darkPrimary: resolve(darkPrimary, darkPrimary[k]),
-  })
+  const roleOf = roleIn(schemes)
 
   const roles = sysKeys.map(roleOf).filter((r) => !isCustom(r.name))
   const groupOf = (name) =>
@@ -158,9 +182,8 @@ const model = (blend, source = BRAND.source) => {
       .split('-')[0]
   const groups = {}
   for (const r of roles) (groups[groupOf(r.name)] ??= []).push(r)
-  // Secondary and tertiary are dropped from the surfaced palette. MD3 still
-  // computes them internally — there's no flag to disable them — but they are
-  // not shown or used; the accents below take their place.
+  // Secondary and tertiary come from `ROLE_SEEDS` below, per choice, so the page
+  // can swap them without a model per combination; drop the ones built here.
   delete groups.secondary
   delete groups.tertiary
 
@@ -196,8 +219,6 @@ const model = (blend, source = BRAND.source) => {
   for (const k of Object.keys(tonal)) if (!(k in ordered)) ordered[k] = tonal[k]
 
   // For each brand colour, the step in its own ramp closest to the authored hex.
-  const nearestIn = (authored, ramp) =>
-    ramp.reduce((best, t) => { const de = deltaE(authored, t.hex); return de < best.de ? { tone: t.tone, hex: t.hex, de } : best }, { de: Infinity })
   const nearest = [
     { label: 'Primary', authored: source, ...nearestIn(source, ordered.primary) },
     ...BRAND.accents.map(([name], i) => ({ label: `Accent ${i + 1}`, authored: srcOf[name], ...nearestIn(srcOf[name], ordered[name]) })),
@@ -205,12 +226,6 @@ const model = (blend, source = BRAND.source) => {
   ].map((n) => ({ ...n, de: Math.round(n.de) }))
 
   // The two ramps the primary modes redraw, for the ramps section in those views.
-  const rampOf = (block, name) =>
-    Object.entries(block)
-      .map(([k, v]) => [k.match(/^--md-ref-palette-(.+)-(\d+)$/), v])
-      .filter(([m]) => m && m[1] === name)
-      .map(([m, hex]) => ({ tone: Number(m[2]), hex }))
-      .sort((a, b) => a.tone - b.tone)
   const tonalPrimary = { ...ordered, neutral: rampOf(lightPrimary, 'neutral'), 'neutral-variant': rampOf(lightPrimary, 'neutral-variant') }
 
   return { groups, accents, neutrals, tonal: ordered, tonalPrimary, nearest }
@@ -218,6 +233,36 @@ const model = (blend, source = BRAND.source) => {
 
 // One model per primary × fidelity: 7 × 2, all computed here so the page needs no builder.
 const data = Object.fromEntries(PRIMARIES.map(([key, , hex]) => [key, { harmonized: model(true, hex), exact: model(false, hex) }]))
+
+/**
+ * Secondary and tertiary, per choice: `auto` (MD3 derives them from the
+ * primary) or a brand hue's pure hex as the seed. A model per combination
+ * would be 7 × 8 × 8 × 2; these are separable instead — measured on
+ * material-theme-builder 5.0.0, a secondary seed moves only the secondary
+ * roles, a tertiary seed only the tertiary ones, and neither depends on the
+ * other or on blend. So each is built once per primary and the page combines
+ * them. Seeded families are also primary-independent, but `auto` is not, and
+ * keeping one shape per primary is simpler than special-casing it.
+ */
+const familyFor = (source, which, hex) => {
+  const schemes = schemesFor(seedFor(false, source, hex ? { [which]: hex } : {}))
+  const pattern = new RegExp(`^--md-sys-color-(on-)?${which}(-|$)`)
+  const roles = Object.keys(schemes.light).filter((k) => pattern.test(k)).map(roleIn(schemes))
+  const ramp = rampOf(schemes.light, which)
+  return { roles, ramp, ...(hex ? { nearest: { ...nearestIn(hex, ramp), authored: hex } } : {}) }
+}
+const ROLE_SEEDS = Object.fromEntries(
+  PRIMARIES.map(([key, , primaryHex]) => [
+    key,
+    Object.fromEntries(
+      ['secondary', 'tertiary'].map((which) => [
+        which,
+        { auto: familyFor(primaryHex, which), ...Object.fromEntries(PRIMARIES.map(([seedKey, , hex]) => [seedKey, familyFor(primaryHex, which, hex)])) },
+      ])
+    ),
+  ])
+)
+for (const families of Object.values(ROLE_SEEDS)) for (const family of Object.values(families)) for (const f of Object.values(family)) if (f.nearest) f.nearest.de = Math.round(f.nearest.de)
 
 // The page's own chrome comes from these roles — the same map the script uses.
 const ROLE_FOR = { '--bg': 'surface', '--fg': 'on-surface', '--panel': 'surface-container-high', '--border': 'outline-variant', '--muted': 'on-surface-variant' }
@@ -263,6 +308,9 @@ const html = `<!doctype html>
     .toggle .grp-label { font-size: 12px; color: var(--muted); }
     .toggle .sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
     .toggle .note { color: var(--muted); font-size: 12px; margin-left: 4px; }
+    .toggle .break { flex-basis: 100%; height: 0; }
+    .toggle button:disabled { opacity: .35; cursor: not-allowed; }
+    .toggle button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
     .group { margin-bottom: 24px; }
     .group h3 { font-size: 13px; text-transform: capitalize; margin: 0 0 8px; color: var(--fg); }
     .roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
@@ -301,7 +349,7 @@ const html = `<!doctype html>
 <body>
   <header>
     <h1>pmndrs design system — brand palette</h1>
-    <p>Computed live from the seed (7 accents + 2 neutrals, vibrant scheme; neutrals at chroma 2) · try each brand hue as the primary, toggle fidelity and light/dark below</p>
+    <p>Computed live from the seed (7 accents + 2 neutrals, vibrant scheme; neutrals at chroma 2) · try brand hues as primary, secondary and tertiary, toggle fidelity and light/dark below</p>
   </header>
   <div class="toggle">
     <span class="grp-label">Primary:</span>
@@ -318,6 +366,12 @@ const html = `<!doctype html>
     <button id="m-both-primary" aria-pressed="false">Both (Primary)</button>
     <button id="m-light-primary" aria-pressed="false">Light (Primary)</button>
     <button id="m-dark-primary" aria-pressed="false">Dark (Primary)</button>
+    <span class="break"></span>
+    ${['secondary', 'tertiary'].map((which) => `<span class="grp-label">${which[0].toUpperCase() + which.slice(1)}:</span>
+    <button id="${which[0]}-auto" aria-pressed="true" title="Derived from the primary by MD3">Auto</button>
+    ${PRIMARIES.map(([key, name, hex]) => `<button id="${which[0]}-${key}" aria-pressed="false"><span class="chip" style="background:${hex}"></span>${name}</button>`).join('\n    ')}
+    <span class="sep"></span>`).join('\n    ')}
+    <button id="u-unique" aria-pressed="true" title="Keep primary, secondary and tertiary on different brand hues">Unique</button>
     <span class="note" id="toggle-note"></span>
   </div>
   <section class="logos">
@@ -329,14 +383,20 @@ const html = `<!doctype html>
   </section>
   <main id="app"></main>
   <script id="data" type="application/json">${JSON.stringify(data)}</script>
+  <script id="role-seeds" type="application/json">${JSON.stringify(ROLE_SEEDS)}</script>
   <script>
     const DATA = JSON.parse(document.getElementById('data').textContent)
     // Two independent axes: fidelity (exact by default, as the registry ships, or
     // harmonized) picks the dataset;
     // view (both, light or dark) picks how each role is shown and themes the page.
     // A third axis picks the primary: each brand hue's pure hex as the seed.
-    const state = { primary: 'accent-7', fidelity: 'exact', view: 'both' }
+    // Secondary and tertiary are 'auto' (MD3 derives them from the primary) or a
+    // brand hue's key; with Unique on, no two of the three share a brand hue.
+    const state = { primary: 'accent-7', secondary: 'auto', tertiary: 'auto', unique: true, fidelity: 'exact', view: 'both' }
     const PRIMARIES = ${JSON.stringify(PRIMARIES)}
+    const ROLE_SEEDS = JSON.parse(document.getElementById('role-seeds').textContent)
+    const hueName = (key) => (key === 'auto' ? 'Auto' : PRIMARIES.find(([k]) => k === key)[1])
+    const familyOf = (which) => ROLE_SEEDS[state.primary][which][state[which]]
 
     const ink = (hex) => {
       const h = hex.replace('#', '')
@@ -375,7 +435,10 @@ const html = `<!doctype html>
       html += '<h2>Brand colours → nearest ramp step</h2>'
       html += '<p class="legend">For each brand colour, the closest step in its own ramp (by CIELAB ΔE). The big number is the level (tone); the chip is the authored value.</p>'
       html += '<div class="nearest">'
-      for (const n of d.nearest) {
+      const seeded = ['secondary', 'tertiary'].filter((which) => state[which] !== 'auto')
+      const nearest = [...d.nearest]
+      nearest.splice(1, 0, ...seeded.map((which) => ({ label: which[0].toUpperCase() + which.slice(1), ...familyOf(which).nearest })))
+      for (const n of nearest) {
         html += '<div class="near"><div class="near-sw" style="background:' + n.hex + ';color:' + ink(n.hex) + '">' + n.tone + '</div>' +
           '<div class="near-meta"><span class="lbl">' + n.label + '</span><span class="hex">' + n.hex + '</span>' +
           '<span class="near-auth"><span class="chip" style="background:' + n.authored + '"></span>' + n.authored + ' · ΔE ' + n.de + '</span></div></div>'
@@ -383,7 +446,12 @@ const html = `<!doctype html>
       html += '</div>'
 
       html += '<h2>Semantic roles (--md-sys-color-*)</h2>'
+      const shown = {}
       for (const [name, roles] of Object.entries(d.groups)) {
+        shown[name] = roles
+        if (name === 'primary') for (const which of ['secondary', 'tertiary']) shown[which] = familyOf(which).roles
+      }
+      for (const [name, roles] of Object.entries(shown)) {
         html += '<section class="group"><h3>' + name + '</h3><div class="roles">'
         for (const r of roles) {
           const ref = VIEWS[state.view][0].startsWith('dark') ? (r.darkRef || r.lightRef) : r.lightRef
@@ -413,7 +481,12 @@ const html = `<!doctype html>
 
       html += '<h2>Tonal reference ramps (--md-ref-palette-*)</h2>'
       html += '<p class="legend">Scheme-independent tones the roles alias onto — identical in light and dark.' + (isPrimaryView() ? ' Primary views: Neutral and Neutral-Variant are tinted by the primary; Neutral-1/2 keep the brand ramp.' : '') + '</p>'
+      const ramps = {}
       for (const [hue, ramp] of Object.entries(isPrimaryView() ? d.tonalPrimary : d.tonal)) {
+        ramps[hue] = ramp
+        if (hue === 'primary') for (const which of ['secondary', 'tertiary']) ramps[which] = familyOf(which).ramp
+      }
+      for (const [hue, ramp] of Object.entries(ramps)) {
         const label = /^accent-\d$/.test(hue) ? 'Accent ' + hue.slice(7) : /^neutral-\d$/.test(hue) ? 'Neutral ' + hue.slice(8) : hue
         html += '<div class="ramp"><div class="ramp-name">' + label + '</div><div class="tones">'
         for (const t of ramp) {
@@ -444,23 +517,57 @@ const html = `<!doctype html>
       harmonized: 'blend: true — hues nudged toward the seed for cohesion',
       exact: 'blend: false — hues kept true to the authored hex',
     }
+    // With Unique on, a seeded secondary or tertiary may not share the primary's
+    // hue or each other's. Their taken hues are disabled; changing the primary
+    // (or switching Unique on) onto a taken hue moves the role that now clashes
+    // to the next free brand hue, in toolbar order. 'auto' never clashes.
+    function enforceUnique() {
+      if (!state.unique) return ''
+      const order = PRIMARIES.map(([key]) => key)
+      const moved = []
+      const settle = (which, others) => {
+        if (state[which] === 'auto' || !others.includes(state[which])) return
+        const was = state[which]
+        state[which] = order.find((key) => !others.includes(key))
+        moved.push(which + ' ' + hueName(was) + ' → ' + hueName(state[which]))
+      }
+      settle('secondary', [state.primary, state.tertiary].filter((k) => k !== 'auto'))
+      settle('tertiary', [state.primary, state.secondary].filter((k) => k !== 'auto'))
+      return moved.length ? 'Unique moved ' + moved.join(', ') : ''
+    }
+    const takenFor = (which) => (state.unique ? [state.primary, state[which === 'secondary' ? 'tertiary' : 'secondary']] : [])
+
     const groups = {
       primary: Object.fromEntries(PRIMARIES.map(([key]) => [key, 'p-' + key])),
+      secondary: Object.fromEntries([['auto', 's-auto'], ...PRIMARIES.map(([key]) => [key, 's-' + key])]),
+      tertiary: Object.fromEntries([['auto', 't-auto'], ...PRIMARIES.map(([key]) => [key, 't-' + key])]),
       fidelity: { harmonized: 't-harmonized', exact: 't-exact' },
       view: { both: 'm-both', light: 'm-light', dark: 'm-dark', 'both-primary': 'm-both-primary', 'light-primary': 'm-light-primary', 'dark-primary': 'm-dark-primary' },
     }
+    let lastMove = ''
     function update() {
       for (const [g, opts] of Object.entries(groups)) {
         for (const [val, id] of Object.entries(opts)) document.getElementById(id).setAttribute('aria-pressed', String(state[g] === val))
       }
+      for (const which of ['secondary', 'tertiary']) {
+        const taken = takenFor(which)
+        for (const [key] of PRIMARIES) document.getElementById(which[0] + '-' + key).disabled = taken.includes(key)
+      }
+      document.getElementById('u-unique').setAttribute('aria-pressed', String(state.unique))
       const [, name, hex] = PRIMARIES.find(([key]) => key === state.primary)
-      document.getElementById('toggle-note').textContent = name + ' ' + hex + ' as the seed · ' + notes[state.fidelity]
+      document.getElementById('toggle-note').textContent = [
+        name + ' ' + hex + ' as the seed',
+        'secondary ' + hueName(state.secondary) + ', tertiary ' + hueName(state.tertiary),
+        notes[state.fidelity],
+        lastMove,
+      ].filter(Boolean).join(' · ')
       theme()
       render()
     }
     for (const [g, opts] of Object.entries(groups)) {
-      for (const [val, id] of Object.entries(opts)) document.getElementById(id).onclick = () => { state[g] = val; update() }
+      for (const [val, id] of Object.entries(opts)) document.getElementById(id).onclick = () => { state[g] = val; lastMove = enforceUnique(); update() }
     }
+    document.getElementById('u-unique').onclick = () => { state.unique = !state.unique; lastMove = enforceUnique(); update() }
     update()
 
     // A fresh query string loads the SVG as a new document, so its animation starts over.
