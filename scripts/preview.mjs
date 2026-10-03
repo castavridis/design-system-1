@@ -219,6 +219,11 @@ const model = (blend, source = BRAND.source) => {
 // One model per primary × fidelity: 7 × 2, all computed here so the page needs no builder.
 const data = Object.fromEntries(PRIMARIES.map(([key, , hex]) => [key, { harmonized: model(true, hex), exact: model(false, hex) }]))
 
+// The page's own chrome comes from these roles — the same map the script uses.
+const ROLE_FOR = { '--bg': 'surface', '--fg': 'on-surface', '--panel': 'surface-container-high', '--border': 'outline-variant', '--muted': 'on-surface-variant' }
+const shippedRole = (name) => Object.values(data['accent-7'].exact.groups).flat().find((r) => r.name === name)
+const chromeCss = (mode) => Object.entries(ROLE_FOR).map(([v, role]) => `${v}: ${shippedRole(role)[mode]};`).join(' ')
+
 // The four SVGs the `logo` registry item installs, in the order it lists them.
 const LOGOS = [
   ['logo_complete.svg', 'Complete', 'The full mark'],
@@ -239,9 +244,10 @@ const html = `<!doctype html>
     @font-face { font-family: 'Geist'; src: url('fonts/Geist-Variable.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
     @font-face { font-family: 'Geist Mono'; src: url('fonts/GeistMono-Regular.woff2') format('woff2'); font-weight: 400; font-display: swap; }
     * { box-sizing: border-box; }
-    /* Page chrome. Defaults are neutral-dark (the "Both" view); the Light/Dark
-       views override these from the palette's own surface roles via JS. */
-    :root { --bg: #0e1116; --fg: #e6e6e6; --muted: #9aa4b2; --panel: #161b22; --border: #222a35; }
+    /* Page chrome, from the shipped palette's own surface roles. These are the
+       first paint; the script then sets them for whichever view is chosen. */
+    :root { ${chromeCss('light')} }
+    @media (prefers-color-scheme: dark) { :root { ${chromeCss('dark')} } }
     body { margin: 0; font: 400 14px/1.4 'Geist', ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--fg); transition: background .15s ease, color .15s ease; }
     h1, h2, h3 { font-weight: 900; }
     code, kbd, pre, samp, .hex, .ref { font-family: 'Geist Mono', ui-monospace, monospace; font-weight: 400; }
@@ -420,16 +426,19 @@ const html = `<!doctype html>
     }
 
     // Page chrome follows the selected mode's own surface roles so the preview
-    // reads as a real light/dark theme; the "both" views keep the neutral-dark defaults.
-    const DEFAULTS = { '--bg': '#0e1116', '--fg': '#e6e6e6', '--muted': '#9aa4b2', '--panel': '#161b22', '--border': '#222a35' }
-    const ROLE_FOR = { '--bg': 'surface', '--fg': 'on-surface', '--panel': 'surface-container-high', '--border': 'outline-variant', '--muted': 'on-surface-variant' }
+    // reads as a real light/dark theme. A "both" view shows two schemes, so its
+    // chrome takes whichever of the pair matches the viewer's system setting:
+    // Both looks like Light or Dark, Both (Primary) like Light or Dark (Primary).
+    const ROLE_FOR = ${JSON.stringify(ROLE_FOR)}
+    const prefersDark = matchMedia('(prefers-color-scheme: dark)')
     function theme() {
       const root = document.documentElement.style
-      const scheme = VIEWS[state.view]
-      if (scheme.length === 2) { for (const k in DEFAULTS) root.setProperty(k, DEFAULTS[k]); return }
+      const pair = VIEWS[state.view]
+      const scheme = pair.length === 2 ? pair[prefersDark.matches ? 1 : 0] : pair[0]
       const d = DATA[state.primary][state.fidelity]
-      for (const [v, role] of Object.entries(ROLE_FOR)) { const r = find(d, role); if (r) root.setProperty(v, r[scheme[0]]) }
+      for (const [v, role] of Object.entries(ROLE_FOR)) { const r = find(d, role); if (r) root.setProperty(v, r[scheme]) }
     }
+    prefersDark.addEventListener('change', theme)
 
     const notes = {
       harmonized: 'blend: true — hues nudged toward the seed for cohesion',
