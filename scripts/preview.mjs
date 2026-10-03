@@ -187,18 +187,25 @@ const model = (blend, source = BRAND.source) => {
   delete groups.secondary
   delete groups.tertiary
 
+  // A custom colour's other three roles, for the scheme layout's custom-colour rows.
+  const familyRoles = (name) => ({
+    on: roleOf(`--md-sys-color-on-${name}`),
+    container: roleOf(`--md-sys-color-${name}-container`),
+    onContainer: roleOf(`--md-sys-color-on-${name}-container`),
+  })
+
   // Accent colours: base role per accent, paired with its authored hex.
   const srcOf = Object.fromEntries(BRAND.accents)
   const accents = BRAND.accents.map(([name]) => {
     const r = roleOf(`--md-sys-color-${name}`)
-    return { name, label: `Accent ${name.replace('accent-', '')}`, authored: srcOf[name], light: r.light, dark: r.dark, lightPrimary: r.lightPrimary, darkPrimary: r.darkPrimary }
+    return { name, label: `Accent ${name.replace('accent-', '')}`, authored: srcOf[name], light: r.light, dark: r.dark, lightPrimary: r.lightPrimary, darkPrimary: r.darkPrimary, ...familyRoles(name) }
   })
 
   // Neutral-1/2: the same shape, so they render with the accents' swatch markup.
   const neutralSrc = Object.fromEntries(BRAND.neutrals)
   const neutrals = BRAND.neutrals.map(([name]) => {
     const r = roleOf(`--md-sys-color-${name}`)
-    return { name, label: `Neutral ${name.replace('neutral-', '')}`, authored: neutralSrc[name], light: r.light, dark: r.dark, lightPrimary: r.lightPrimary, darkPrimary: r.darkPrimary }
+    return { name, label: `Neutral ${name.replace('neutral-', '')}`, authored: neutralSrc[name], light: r.light, dark: r.dark, lightPrimary: r.lightPrimary, darkPrimary: r.darkPrimary, ...familyRoles(name) }
   })
 
   // Tonal ramps: primary (lime-green) + the six accent ramps, keeping the
@@ -333,6 +340,23 @@ const html = `<!doctype html>
     .near { width: 132px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
     .near-sw { height: 60px; display: flex; align-items: flex-end; justify-content: flex-end; padding: 6px 9px; font-weight: 900; font-size: 18px; font-variant-numeric: tabular-nums; }
     .near-meta { padding: 7px 9px; display: flex; flex-direction: column; gap: 3px; background: var(--panel); }
+    /* Scheme: Material Theme Builder's layout, one card per scheme in the view. */
+    .schemes { display: grid; gap: 16px; }
+    .m3 { border: 1px solid var(--border); border-radius: 16px; padding: 20px 24px 24px; display: grid; gap: 12px; }
+    .m3 h3 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
+    .m3-split { display: grid; grid-template-columns: 3fr 1fr; gap: 12px 28px; }
+    .m3-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .m3-col { display: grid; grid-template-rows: 80px 36px 80px 36px; }
+    .m3-strip { display: grid; }
+    .m3-cell { padding: 8px 12px; font-size: 13px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; min-width: 0; }
+    .m3-cell .h { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 10px; opacity: .8; font-variant-numeric: tabular-nums; }
+    .m3-cell.short { flex-direction: row; align-items: center; }
+    .m3-surfaces { display: grid; grid-template-rows: 96px 96px 36px; }
+    .m3-side { display: grid; grid-template-rows: 112px 36px 36px auto; gap: 0; align-content: start; }
+    .m3-side .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+    .m3-custom { display: grid; grid-template-columns: repeat(4, 1fr); }
+    .m3-custom .m3-cell { min-height: 52px; }
+    @media (max-width: 900px) { .m3-split { grid-template-columns: 1fr; } .m3-custom { grid-template-columns: repeat(2, 1fr); } }
     .near-auth { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
     /* Outside #app: render() rewrites that on every toggle, which would restart the animations. */
     .logos { padding: 8px 40px 0; }
@@ -431,6 +455,44 @@ const html = `<!doctype html>
     function render() {
       const d = DATA[state.primary][state.fidelity]
       let html = ''
+
+      // Every role by name, for the scheme cards: MD3's own, the chosen secondary
+      // and tertiary, and each custom colour's four.
+      const byName = {}
+      for (const roles of Object.values(d.groups)) for (const r of roles) byName[r.name] = r
+      for (const which of ['secondary', 'tertiary']) for (const r of familyOf(which).roles) byName[r.name] = r
+      const pickedNow = new Set(['secondary', 'tertiary'].filter((w) => state[w] !== 'auto').map((w) => state[w]))
+      const customs = [...d.accents.filter((a) => !pickedNow.has(a.name)), ...d.neutrals]
+      for (const c of customs) Object.assign(byName, { [c.name]: c, ['on-' + c.name]: c.on, [c.name + '-container']: c.container, ['on-' + c.name + '-container']: c.onContainer })
+
+      const SCHEME_TITLES = { light: 'Light Scheme', dark: 'Dark Scheme', lightPrimary: 'Light (Primary) Scheme', darkPrimary: 'Dark (Primary) Scheme' }
+      const schemeCard = (scheme) => {
+        const v = (name) => byName[name][scheme]
+        // A cell is a role's colour with another role's colour as its text, the way
+        // Material Theme Builder pairs them; \`short\` cells hold one line.
+        const c = (label, bg, fg, short) => '<div class="m3-cell' + (short ? ' short' : '') + '" style="background:' + v(bg) + ';color:' + (fg ? v(fg) : ink(v(bg))) + '">' +
+          '<span>' + label + '</span><span class="h">' + v(bg) + '</span></div>'
+        const column = (role, label) => '<div class="m3-col">' +
+          c(label, role, 'on-' + role) + c('On ' + label, 'on-' + role, role, true) +
+          c(label + ' Container', role + '-container', 'on-' + role + '-container') + c('On ' + label + ' Container', 'on-' + role + '-container', role + '-container', true) + '</div>'
+        let h = '<div class="m3" style="background:' + v('surface') + ';color:' + v('on-surface') + '"><h3>' + SCHEME_TITLES[scheme] + '</h3>'
+        h += '<div class="m3-split"><div class="m3-cols">' + column('primary', 'Primary') + column('secondary', 'Secondary') + column('tertiary', 'Tertiary') + '</div>' + column('error', 'Error') + '</div>'
+        h += '<div class="m3-split"><div class="m3-surfaces">'
+        h += '<div class="m3-strip" style="grid-template-columns:repeat(3,1fr)">' + c('Surface Dim', 'surface-dim', 'on-surface') + c('Surface', 'surface', 'on-surface') + c('Surface Bright', 'surface-bright', 'on-surface') + '</div>'
+        h += '<div class="m3-strip" style="grid-template-columns:repeat(5,1fr)">' + [['Lowest', '-lowest'], ['Low', '-low'], ['', ''], ['High', '-high'], ['Highest', '-highest']].map(([l, k]) => c('Surf. Container' + (l ? ' ' + l : ''), 'surface-container' + k, 'on-surface')).join('') + '</div>'
+        h += '<div class="m3-strip" style="grid-template-columns:repeat(4,1fr)">' + c('On Surface', 'on-surface', 'surface', true) + c('On Surface Var.', 'on-surface-variant', 'surface', true) + c('Outline', 'outline', 'surface', true) + c('Outline Variant', 'outline-variant', 'on-surface', true) + '</div>'
+        h += '</div><div class="m3-side">' + c('Inverse Surface', 'inverse-surface', 'inverse-on-surface') + c('Inverse On Surface', 'inverse-on-surface', 'inverse-surface', true) + c('Inverse Primary', 'inverse-primary', 'inverse-surface', true) +
+          '<div class="pair">' + c('Scrim', 'scrim', null, true) + c('Shadow', 'shadow', null, true) + '</div></div></div>'
+        for (const x of customs) {
+          const label = x.label
+          h += '<div class="m3-custom">' + c(label, x.name, 'on-' + x.name, true) + c('On ' + label, 'on-' + x.name, x.name, true) +
+            c(label + ' Container', x.name + '-container', 'on-' + x.name + '-container', true) + c('On ' + label + ' Container', 'on-' + x.name + '-container', x.name + '-container', true) + '</div>'
+        }
+        return h + '</div>'
+      }
+      html += '<h2>Scheme</h2>'
+      html += '<p class="legend">Laid out like Material Theme Builder. Accents (and Neutral 1/2) are the custom-colour rows: Accent 1 Container is MTB\u2019s Custom Color 1 Container. Hues picked as secondary or tertiary show in those columns instead.</p>'
+      html += '<div class="schemes">' + VIEWS[state.view].map(schemeCard).join('') + '</div>'
 
       html += '<h2>Brand colours → nearest ramp step</h2>'
       html += '<p class="legend">For each brand colour, the closest step in its own ramp (by CIELAB ΔE). The big number is the level (tone); the chip is the authored value.</p>'
