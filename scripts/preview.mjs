@@ -221,7 +221,7 @@ const model = (blend, source = BRAND.source) => {
   // For each brand colour, the step in its own ramp closest to the authored hex.
   const nearest = [
     { label: 'Primary', authored: source, ...nearestIn(source, ordered.primary) },
-    ...BRAND.accents.map(([name], i) => ({ label: `Accent ${i + 1}`, authored: srcOf[name], ...nearestIn(srcOf[name], ordered[name]) })),
+    ...BRAND.accents.map(([name], i) => ({ name, label: `Accent ${i + 1}`, authored: srcOf[name], ...nearestIn(srcOf[name], ordered[name]) })),
     ...BRAND.neutrals.map(([name], i) => ({ label: `Neutral ${i + 1}`, authored: neutralSrc[name], ...nearestIn(neutralSrc[name], ordered[name]) })),
   ].map((n) => ({ ...n, de: Math.round(n.de) }))
 
@@ -436,7 +436,10 @@ const html = `<!doctype html>
       html += '<p class="legend">For each brand colour, the closest step in its own ramp (by CIELAB ΔE). The big number is the level (tone); the chip is the authored value.</p>'
       html += '<div class="nearest">'
       const seeded = ['secondary', 'tertiary'].filter((which) => state[which] !== 'auto')
-      const nearest = [...d.nearest]
+      // A brand hue picked as secondary or tertiary shows in that group instead,
+      // so it drops out of the accents everywhere they are listed.
+      const picked = new Set(seeded.map((which) => state[which]))
+      const nearest = d.nearest.filter((n) => !picked.has(n.name))
       nearest.splice(1, 0, ...seeded.map((which) => ({ label: which[0].toUpperCase() + which.slice(1), ...familyOf(which).nearest })))
       for (const n of nearest) {
         html += '<div class="near"><div class="near-sw" style="background:' + n.hex + ';color:' + ink(n.hex) + '">' + n.tone + '</div>' +
@@ -462,9 +465,10 @@ const html = `<!doctype html>
       }
 
       html += '<h2>Accent colours</h2>'
-      html += '<p class="legend">The six non-primary brand hues, exposed as named custom colours (<code>bg-accent-1</code> … <code>bg-accent-6</code>). The chip is the authored value; swatches are the MD3 role it generates — the Fidelity toggle changes how close that stays to the authored hex.</p>'
+      html += '<p class="legend">The six non-primary brand hues, exposed as named custom colours (<code>bg-accent-1</code> … <code>bg-accent-6</code>). The chip is the authored value; swatches are the MD3 role it generates — the Fidelity toggle changes how close that stays to the authored hex.' +
+        (picked.size ? ' Hues picked as secondary or tertiary are left out here; they show in those groups.' : '') + '</p>'
       html += '<div class="brand">'
-      for (const b of d.accents) {
+      for (const b of d.accents.filter((a) => !picked.has(a.name))) {
         html += '<div class="role"><div class="pair" style="' + pairStyle() + '">' + swatches(b) +
           '</div><div class="authored"><span class="chip" style="background:' + b.authored + '"></span>authored ' + b.authored + '</div></div>'
       }
@@ -486,7 +490,7 @@ const html = `<!doctype html>
         ramps[hue] = ramp
         if (hue === 'primary') for (const which of ['secondary', 'tertiary']) ramps[which] = familyOf(which).ramp
       }
-      for (const [hue, ramp] of Object.entries(ramps)) {
+      for (const [hue, ramp] of Object.entries(ramps).filter(([hue]) => !picked.has(hue))) {
         const label = /^accent-\d$/.test(hue) ? 'Accent ' + hue.slice(7) : /^neutral-\d$/.test(hue) ? 'Neutral ' + hue.slice(8) : hue
         html += '<div class="ramp"><div class="ramp-name">' + label + '</div><div class="tones">'
         for (const t of ramp) {
