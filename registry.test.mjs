@@ -12,8 +12,11 @@
  * which covers both.
  */
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
+import { argbFromHex, Hct } from '@material/material-color-utilities'
 import registry from './registry.json' with { type: 'json' }
+import { NEUTRAL_CHROMA, NEUTRAL_VARIANT_CHROMA } from './scripts/palette-overrides.mjs'
 
 /** Every `--name: value` pair under an item's `css`, at any nesting depth. */
 function declarations(css, found = []) {
@@ -75,4 +78,66 @@ test('registryDependencies on this registry name items it defines', () => {
   )
 
   assert.deepEqual(dangling, [])
+})
+
+/**
+ * The palette overrides are applied to the CSS and to each Figma file
+ * separately, so "the hex a designer picks is the hex the site renders" no
+ * longer holds by construction. This holds it by test: every Figma role,
+ * followed through its aliases, against the same role in the baked CSS.
+ */
+test('every Figma role resolves to the hex the baked CSS gives it', () => {
+  const css = registry.items.find((item) => item.name === 'md3').css
+  const resolveCss = (block, name) => {
+    let value = block[name] ?? css[':root'][name]
+    for (let ref; (ref = value?.match(/^var\((--[\w-]+)\)$/)); ) value = block[ref[1]] ?? css[':root'][ref[1]]
+    return value?.toLowerCase()
+  }
+
+  const mismatches = []
+  for (const [mode, block] of [['Light', css[':root']], ['Dark', css['.dark']]]) {
+    const tokens = JSON.parse(readFileSync(new URL(`./figma/${mode}.tokens.json`, import.meta.url), 'utf8'))
+    const resolveFigma = (value) => {
+      while (typeof value === 'string') value = value.slice(1, -1).split('.').reduce((node, key) => node[key], tokens).$value
+      return value.hex.toLowerCase()
+    }
+    const walk = (node) => {
+      if (node.$value && node.$extensions?.['css.variable']) {
+        const name = node.$extensions['css.variable']
+        const [figma, baked] = [resolveFigma(node.$value), resolveCss(block, name)]
+        if (figma !== baked) mismatches.push(`${mode} ${name}: Figma ${figma}, CSS ${baked}`)
+      } else if (typeof node === 'object') Object.values(node).forEach(walk)
+    }
+    walk(tokens.sys)
+  }
+
+  assert.deepEqual(mismatches, [])
+})
+
+/**
+ * What the overrides are for, measured on the output rather than trusted from
+ * the code: the surfaces are warm grey, and Neutral-1/2 keep the chroma of
+ * their hex instead of the primary's.
+ */
+test('the baked neutral ramps carry the overridden chroma', () => {
+  const root = registry.items.find((item) => item.name === 'md3').css[':root']
+  const chromaOf = (palette, tone) => Hct.fromInt(argbFromHex(root[`--md-ref-palette-${palette}-${tone}`])).chroma
+  const expected = {
+    neutral: NEUTRAL_CHROMA,
+    'neutral-variant': NEUTRAL_VARIANT_CHROMA,
+    'neutral-1': Hct.fromInt(argbFromHex('#EAE5DA')).chroma,
+    'neutral-2': Hct.fromInt(argbFromHex('#36342F')).chroma,
+  }
+
+  // Mid tones, where sRGB can hold the chroma asked for. 8-bit rounding moves a
+  // chroma-2 shade by up to ~0.5 (more in the darks); 1 still tells 2 from the
+  // scheme's 10, and Neutral-1's ~5 from the primary's ~70.
+  const off = Object.entries(expected).flatMap(([palette, chroma]) =>
+    [30, 50, 70]
+      .map((tone) => [tone, chromaOf(palette, tone)])
+      .filter(([, got]) => Math.abs(got - chroma) > 1)
+      .map(([tone, got]) => `${palette}-${tone}: chroma ${got.toFixed(2)}, expected ${chroma.toFixed(2)}`)
+  )
+
+  assert.deepEqual(off, [])
 })

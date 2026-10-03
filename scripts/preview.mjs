@@ -15,11 +15,15 @@
  * keep the two in sync. The real `registry.json` is still produced by
  * `npm run build`; this is a viewer, not a second source of truth.
  *
+ * The palette overrides (greyer neutrals, true-chroma Neutral-1/2) are imported
+ * from `palette-overrides.mjs`, not mirrored, so the page shows the baked ramps.
+ *
  * The logo SVGs are copied from `assets/` next to the page, like the fonts, so
  * it shows the same files the `logo` registry item installs.
  */
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { builder } from 'material-theme-builder'
+import { overrideCssBlock, overridePalettes } from './palette-overrides.mjs'
 
 // --- brand seed (mirror of pmndrsMtb in registry/md3-base/md3.ts) -----------
 const BRAND = {
@@ -40,11 +44,22 @@ const BRAND = {
     ['accent-6', '#2BDCF6'], // blue
     ['accent-7', '#CAF543'], // lime-green
   ],
+  // The brand's off-white and near-black, as custom colours with their own ramps.
+  neutrals: [
+    ['neutral-1', '#EAE5DA'], // off-white
+    ['neutral-2', '#36342F'], // near-black
+  ],
 }
 
+// Neutral-1/2 never blend: their ramps are redrawn from the exact hex either way.
+const seedFor = (blend) => {
+  const { source, accents, neutrals, ...rest } = BRAND
+  const customColors = [...accents.map(([name, hex]) => ({ name, hex, blend })), ...neutrals.map(([name, hex]) => ({ name, hex, blend: false }))]
+  return { source, ...rest, customColors }
+}
 const buildTheme = (blend) => {
-  const { source, accents, ...rest } = BRAND
-  return builder(source, { ...rest, customColors: accents.map(([name, hex]) => ({ name, hex, blend })) })
+  const { source, ...rest } = seedFor(blend)
+  return builder(source, rest)
 }
 
 // --- parse / resolve helpers ------------------------------------------------
@@ -97,12 +112,15 @@ const deltaE = (a, b) => {
   return Math.hypot(la[0] - lb[0], la[1] - lb[1], la[2] - lb[2])
 }
 
-const customNames = new Set(BRAND.accents.map(([n]) => n))
+const customNames = new Set([...BRAND.accents, ...BRAND.neutrals].map(([n]) => n))
 
 // Build the render model for one blend mode.
 const model = (blend) => {
   const css = buildTheme(blend).toCss()
-  const { ':root': rootBlock, '.dark': darkBlock } = parseBlocks(css)
+  const overrides = overridePalettes(seedFor(blend))
+  const blocks = parseBlocks(css)
+  const rootBlock = overrideCssBlock(blocks[':root'], overrides)
+  const darkBlock = overrideCssBlock(blocks['.dark'], overrides)
   const light = { ...rootBlock }
   const dark = { ...rootBlock, ...darkBlock }
 
@@ -140,6 +158,13 @@ const model = (blend) => {
     return { name, label: `Accent ${name.replace('accent-', '')}`, authored: srcOf[name], light: r.light, dark: r.dark }
   })
 
+  // Neutral-1/2: the same shape, so they render with the accents' swatch markup.
+  const neutralSrc = Object.fromEntries(BRAND.neutrals)
+  const neutrals = BRAND.neutrals.map(([name]) => {
+    const r = roleOf(`--md-sys-color-${name}`)
+    return { name, label: `Neutral ${name.replace('neutral-', '')}`, authored: neutralSrc[name], light: r.light, dark: r.dark }
+  })
+
   // Tonal ramps: primary (lime-green) + the six accent ramps, keeping the
   // structural neutral/error ramps. Secondary and tertiary are dropped.
   const SKIP = new Set(['secondary', 'tertiary'])
@@ -152,7 +177,7 @@ const model = (blend) => {
   for (const ramp of Object.values(tonal)) ramp.sort((a, b) => a.tone - b.tone)
 
   // Order: primary first, then the accents, then the structural ramps.
-  const RAMP_ORDER = ['primary', 'accent-1', 'accent-2', 'accent-3', 'accent-4', 'accent-5', 'accent-6', 'accent-7', 'error', 'neutral', 'neutral-variant']
+  const RAMP_ORDER = ['primary', 'accent-1', 'accent-2', 'accent-3', 'accent-4', 'accent-5', 'accent-6', 'accent-7', 'neutral-1', 'neutral-2', 'error', 'neutral', 'neutral-variant']
   const ordered = {}
   for (const k of RAMP_ORDER) if (tonal[k]) ordered[k] = tonal[k]
   for (const k of Object.keys(tonal)) if (!(k in ordered)) ordered[k] = tonal[k]
@@ -163,9 +188,10 @@ const model = (blend) => {
   const nearest = [
     { label: 'Primary', authored: BRAND.source, ...nearestIn(BRAND.source, ordered.primary) },
     ...BRAND.accents.map(([name], i) => ({ label: `Accent ${i + 1}`, authored: srcOf[name], ...nearestIn(srcOf[name], ordered[name]) })),
+    ...BRAND.neutrals.map(([name], i) => ({ label: `Neutral ${i + 1}`, authored: neutralSrc[name], ...nearestIn(neutralSrc[name], ordered[name]) })),
   ].map((n) => ({ ...n, de: Math.round(n.de) }))
 
-  return { groups, accents, tonal: ordered, nearest }
+  return { groups, accents, neutrals, tonal: ordered, nearest }
 }
 
 const data = { harmonized: model(true), exact: model(false) }
@@ -245,7 +271,7 @@ const html = `<!doctype html>
 <body>
   <header>
     <h1>pmndrs design system — brand palette</h1>
-    <p>Computed live from the seed (lime-green primary + 7 accents, vibrant scheme) · toggle fidelity and light/dark below</p>
+    <p>Computed live from the seed (lime-green primary + 7 accents + 2 neutrals, vibrant scheme; neutrals at chroma 2) · toggle fidelity and light/dark below</p>
   </header>
   <div class="toggle">
     <span class="grp-label">Fidelity:</span>
@@ -329,10 +355,19 @@ const html = `<!doctype html>
       }
       html += '</div>'
 
+      html += '<h2>Neutral colours</h2>'
+      html += '<p class="legend">The brand off-white and near-black as custom colours (<code>bg-neutral-1</code>, <code>bg-neutral-2-900</code> …). Their ramps keep the chroma of each hex, so they stay grey; the swatches are the tone-40 role, and the authored hex sits at about tone 91 (Neutral 1) and 22 (Neutral 2) of its ramp.</p>'
+      html += '<div class="brand">'
+      for (const b of d.neutrals) {
+        html += '<div class="role"><div class="pair" style="' + pairStyle() + '">' + swatches(b) +
+          '</div><div class="authored"><span class="chip" style="background:' + b.authored + '"></span>authored ' + b.authored + '</div></div>'
+      }
+      html += '</div>'
+
       html += '<h2>Tonal reference ramps (--md-ref-palette-*)</h2>'
       html += '<p class="legend">Scheme-independent tones the roles alias onto — identical in light and dark.</p>'
       for (const [hue, ramp] of Object.entries(d.tonal)) {
-        const label = /^accent-\d$/.test(hue) ? 'Accent ' + hue.slice(7) : hue
+        const label = /^accent-\d$/.test(hue) ? 'Accent ' + hue.slice(7) : /^neutral-\d$/.test(hue) ? 'Neutral ' + hue.slice(8) : hue
         html += '<div class="ramp"><div class="ramp-name">' + label + '</div><div class="tones">'
         for (const t of ramp) {
           html += '<div class="tone" title="' + hue + '-' + t.tone + ': ' + t.hex + '" style="background:' + t.hex + ';color:' + ink(t.hex) + '">' + t.tone + '</div>'
@@ -400,4 +435,4 @@ mkdirSync(new URL('./logos/', out), { recursive: true })
 for (const [file] of LOGOS) copyFileSync(new URL(`../assets/${file}`, import.meta.url), new URL(`./logos/${file}`, out))
 writeFileSync(out, html)
 const n = BRAND.accents.length
-console.log(`✔ wrote demo/palette.html (lime-green primary, ${n} accents, harmonized + exact, ${LOGOS.length} logos)`)
+console.log(`✔ wrote demo/palette.html (lime-green primary, ${n} accents, ${BRAND.neutrals.length} neutrals, harmonized + exact, ${LOGOS.length} logos)`)
