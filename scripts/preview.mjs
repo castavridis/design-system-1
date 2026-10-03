@@ -23,7 +23,7 @@
  */
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { builder } from 'material-theme-builder'
-import { overrideCssBlock, overridePalettes } from './palette-overrides.mjs'
+import { overrideCssBlock, overridePalettes, primaryModePalettes } from './palette-overrides.mjs'
 
 // --- brand seed (mirror of pmndrsMtb in registry/md3-base/md3.ts) -----------
 const BRAND = {
@@ -129,6 +129,11 @@ const model = (blend, source = BRAND.source) => {
   const darkBlock = overrideCssBlock(blocks['.dark'], overrides)
   const light = { ...rootBlock }
   const dark = { ...rootBlock, ...darkBlock }
+  // Light (Primary) / Dark (Primary): the same blocks with neutral and
+  // neutral-variant re-tinted by the primary's hue; everything else as shipped.
+  const tint = primaryModePalettes({ source })
+  const lightPrimary = overrideCssBlock(rootBlock, tint)
+  const darkPrimary = { ...lightPrimary, ...overrideCssBlock(darkBlock, tint) }
 
   const sysKeys = Object.keys(light).filter((k) => k.startsWith('--md-sys-color-'))
 
@@ -141,6 +146,8 @@ const model = (blend, source = BRAND.source) => {
     darkRef: dark[k].match(/--md-ref-palette-([\w-]+)/)?.[1] ?? '',
     light: resolve(light, light[k]),
     dark: resolve(dark, dark[k]),
+    lightPrimary: resolve(lightPrimary, lightPrimary[k]),
+    darkPrimary: resolve(darkPrimary, darkPrimary[k]),
   })
 
   const roles = sysKeys.map(roleOf).filter((r) => !isCustom(r.name))
@@ -161,14 +168,14 @@ const model = (blend, source = BRAND.source) => {
   const srcOf = Object.fromEntries(BRAND.accents)
   const accents = BRAND.accents.map(([name]) => {
     const r = roleOf(`--md-sys-color-${name}`)
-    return { name, label: `Accent ${name.replace('accent-', '')}`, authored: srcOf[name], light: r.light, dark: r.dark }
+    return { name, label: `Accent ${name.replace('accent-', '')}`, authored: srcOf[name], light: r.light, dark: r.dark, lightPrimary: r.lightPrimary, darkPrimary: r.darkPrimary }
   })
 
   // Neutral-1/2: the same shape, so they render with the accents' swatch markup.
   const neutralSrc = Object.fromEntries(BRAND.neutrals)
   const neutrals = BRAND.neutrals.map(([name]) => {
     const r = roleOf(`--md-sys-color-${name}`)
-    return { name, label: `Neutral ${name.replace('neutral-', '')}`, authored: neutralSrc[name], light: r.light, dark: r.dark }
+    return { name, label: `Neutral ${name.replace('neutral-', '')}`, authored: neutralSrc[name], light: r.light, dark: r.dark, lightPrimary: r.lightPrimary, darkPrimary: r.darkPrimary }
   })
 
   // Tonal ramps: primary (lime-green) + the six accent ramps, keeping the
@@ -197,7 +204,16 @@ const model = (blend, source = BRAND.source) => {
     ...BRAND.neutrals.map(([name], i) => ({ label: `Neutral ${i + 1}`, authored: neutralSrc[name], ...nearestIn(neutralSrc[name], ordered[name]) })),
   ].map((n) => ({ ...n, de: Math.round(n.de) }))
 
-  return { groups, accents, neutrals, tonal: ordered, nearest }
+  // The two ramps the primary modes redraw, for the ramps section in those views.
+  const rampOf = (block, name) =>
+    Object.entries(block)
+      .map(([k, v]) => [k.match(/^--md-ref-palette-(.+)-(\d+)$/), v])
+      .filter(([m]) => m && m[1] === name)
+      .map(([m, hex]) => ({ tone: Number(m[2]), hex }))
+      .sort((a, b) => a.tone - b.tone)
+  const tonalPrimary = { ...ordered, neutral: rampOf(lightPrimary, 'neutral'), 'neutral-variant': rampOf(lightPrimary, 'neutral-variant') }
+
+  return { groups, accents, neutrals, tonal: ordered, tonalPrimary, nearest }
 }
 
 // One model per primary × fidelity: 7 × 2, all computed here so the page needs no builder.
@@ -286,13 +302,16 @@ const html = `<!doctype html>
     ${PRIMARIES.map(([key, name, hex]) => `<button id="p-${key}" aria-pressed="${key === 'accent-7'}"><span class="chip" style="background:${hex}"></span>${name}</button>`).join('\n    ')}
     <span class="sep"></span>
     <span class="grp-label">Fidelity:</span>
-    <button id="t-harmonized" aria-pressed="true">Harmonized</button>
-    <button id="t-exact" aria-pressed="false">Exact</button>
+    <button id="t-harmonized" aria-pressed="false">Harmonized</button>
+    <button id="t-exact" aria-pressed="true">Exact</button>
     <span class="sep"></span>
     <span class="grp-label">Mode:</span>
     <button id="m-both" aria-pressed="true">Both</button>
     <button id="m-light" aria-pressed="false">Light</button>
     <button id="m-dark" aria-pressed="false">Dark</button>
+    <button id="m-both-primary" aria-pressed="false">Both (Primary)</button>
+    <button id="m-light-primary" aria-pressed="false">Light (Primary)</button>
+    <button id="m-dark-primary" aria-pressed="false">Dark (Primary)</button>
     <span class="note" id="toggle-note"></span>
   </div>
   <section class="logos">
@@ -306,10 +325,11 @@ const html = `<!doctype html>
   <script id="data" type="application/json">${JSON.stringify(data)}</script>
   <script>
     const DATA = JSON.parse(document.getElementById('data').textContent)
-    // Two independent axes: fidelity (harmonized or exact) picks the dataset;
+    // Two independent axes: fidelity (exact by default, as the registry ships, or
+    // harmonized) picks the dataset;
     // view (both, light or dark) picks how each role is shown and themes the page.
     // A third axis picks the primary: each brand hue's pure hex as the seed.
-    const state = { primary: 'accent-7', fidelity: 'harmonized', view: 'both' }
+    const state = { primary: 'accent-7', fidelity: 'exact', view: 'both' }
     const PRIMARIES = ${JSON.stringify(PRIMARIES)}
 
     const ink = (hex) => {
@@ -324,15 +344,23 @@ const html = `<!doctype html>
 
     const find = (d, name) => { for (const rs of Object.values(d.groups)) { const x = rs.find((r) => r.name === name); if (x) return x } }
 
-    // "both" shows the light/dark pair; a single-mode view fills one cell with
-    // that mode's value and lets it span the row.
+    // Each view names the scheme(s) it shows. A "both" view shows the light/dark
+    // pair; a single-mode view fills one cell with that mode's value.
+    const VIEWS = {
+      both: ['light', 'dark'],
+      light: ['light'],
+      dark: ['dark'],
+      'both-primary': ['lightPrimary', 'darkPrimary'],
+      'light-primary': ['lightPrimary'],
+      'dark-primary': ['darkPrimary'],
+    }
+    const isPrimaryView = () => state.view.endsWith('primary')
     const swatches = (o) => {
       const lab = o.label || o.name
-      if (state.view === 'light') return cell(o.light, lab, o.light)
-      if (state.view === 'dark') return cell(o.dark, lab, o.dark)
-      return cell(o.light, lab, o.light) + cell(o.dark, 'dark', o.dark)
+      const [a, b] = VIEWS[state.view]
+      return cell(o[a], lab, o[a]) + (b ? cell(o[b], 'dark', o[b]) : '')
     }
-    const pairStyle = () => (state.view === 'both' ? '' : 'grid-template-columns:1fr')
+    const pairStyle = () => (VIEWS[state.view].length === 2 ? '' : 'grid-template-columns:1fr')
 
     function render() {
       const d = DATA[state.primary][state.fidelity]
@@ -352,7 +380,7 @@ const html = `<!doctype html>
       for (const [name, roles] of Object.entries(d.groups)) {
         html += '<section class="group"><h3>' + name + '</h3><div class="roles">'
         for (const r of roles) {
-          const ref = state.view === 'dark' ? (r.darkRef || r.lightRef) : r.lightRef
+          const ref = VIEWS[state.view][0].startsWith('dark') ? (r.darkRef || r.lightRef) : r.lightRef
           html += '<div class="role"><div class="pair" style="' + pairStyle() + '">' + swatches(r) +
             '</div><div class="ref">' + ref + '</div></div>'
         }
@@ -378,8 +406,8 @@ const html = `<!doctype html>
       html += '</div>'
 
       html += '<h2>Tonal reference ramps (--md-ref-palette-*)</h2>'
-      html += '<p class="legend">Scheme-independent tones the roles alias onto — identical in light and dark.</p>'
-      for (const [hue, ramp] of Object.entries(d.tonal)) {
+      html += '<p class="legend">Scheme-independent tones the roles alias onto — identical in light and dark.' + (isPrimaryView() ? ' Primary views: Neutral and Neutral-Variant are tinted by the primary; Neutral-1/2 keep the brand ramp.' : '') + '</p>'
+      for (const [hue, ramp] of Object.entries(isPrimaryView() ? d.tonalPrimary : d.tonal)) {
         const label = /^accent-\d$/.test(hue) ? 'Accent ' + hue.slice(7) : /^neutral-\d$/.test(hue) ? 'Neutral ' + hue.slice(8) : hue
         html += '<div class="ramp"><div class="ramp-name">' + label + '</div><div class="tones">'
         for (const t of ramp) {
@@ -392,14 +420,15 @@ const html = `<!doctype html>
     }
 
     // Page chrome follows the selected mode's own surface roles so the preview
-    // reads as a real light/dark theme; "both" keeps the neutral-dark defaults.
+    // reads as a real light/dark theme; the "both" views keep the neutral-dark defaults.
     const DEFAULTS = { '--bg': '#0e1116', '--fg': '#e6e6e6', '--muted': '#9aa4b2', '--panel': '#161b22', '--border': '#222a35' }
     const ROLE_FOR = { '--bg': 'surface', '--fg': 'on-surface', '--panel': 'surface-container-high', '--border': 'outline-variant', '--muted': 'on-surface-variant' }
     function theme() {
       const root = document.documentElement.style
-      if (state.view === 'both') { for (const k in DEFAULTS) root.setProperty(k, DEFAULTS[k]); return }
+      const scheme = VIEWS[state.view]
+      if (scheme.length === 2) { for (const k in DEFAULTS) root.setProperty(k, DEFAULTS[k]); return }
       const d = DATA[state.primary][state.fidelity]
-      for (const [v, role] of Object.entries(ROLE_FOR)) { const r = find(d, role); if (r) root.setProperty(v, r[state.view]) }
+      for (const [v, role] of Object.entries(ROLE_FOR)) { const r = find(d, role); if (r) root.setProperty(v, r[scheme[0]]) }
     }
 
     const notes = {
@@ -409,7 +438,7 @@ const html = `<!doctype html>
     const groups = {
       primary: Object.fromEntries(PRIMARIES.map(([key]) => [key, 'p-' + key])),
       fidelity: { harmonized: 't-harmonized', exact: 't-exact' },
-      view: { both: 'm-both', light: 'm-light', dark: 'm-dark' },
+      view: { both: 'm-both', light: 'm-light', dark: 'm-dark', 'both-primary': 'm-both-primary', 'light-primary': 'm-light-primary', 'dark-primary': 'm-dark-primary' },
     }
     function update() {
       for (const [g, opts] of Object.entries(groups)) {

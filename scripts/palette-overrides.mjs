@@ -143,3 +143,24 @@ export function overrideFigmaTokens(tokens, palettes) {
   }
   return tokens
 }
+
+/**
+ * Light (Primary) and Dark (Primary): the same roles and tones as the shipped
+ * light and dark, with the two structural neutral ramps tinted by the primary.
+ * This is MD3's own default recipe — `tonalSpot` draws its neutrals from the
+ * source hue — at a calm 6 / 8, under `vibrant`'s 10 / 12. Contrast does not
+ * move: only chroma changes, and every role keeps its tone.
+ *
+ * Neutral-1/2 are not part of this. They are the brand off-white and near-black
+ * and keep the shipped neutral ramp in every mode.
+ */
+export const PRIMARY_MODE_NEUTRAL_CHROMA = 6
+export const PRIMARY_MODE_NEUTRAL_VARIANT_CHROMA = 8
+
+export function primaryModePalettes({ source }) {
+  const hue = Hct.fromInt(argbFromHex(source)).hue
+  return {
+    neutral: TonalPalette.fromHueAndChroma(hue, PRIMARY_MODE_NEUTRAL_CHROMA),
+    'neutral-variant': TonalPalette.fromHueAndChroma(hue, PRIMARY_MODE_NEUTRAL_VARIANT_CHROMA),
+  }
+}
