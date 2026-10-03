@@ -4,9 +4,9 @@
  * `material-theme-builder` 5.0.0 takes only the *hue* of a neutral seed: the
  * chroma comes from the scheme, and `vibrant` fixes it at 10 for neutral and 12
  * for neutral-variant — a visibly yellow cream and near-black. Custom colours
- * fare worse: every one is given the primary's chroma, so `#EAE5DA` comes out
- * as a saturated yellow ramp. Neither is configurable, so this redraws those
- * ramps after the fact.
+ * fare worse: every one is given the primary's chroma, so an off-white comes
+ * out as a saturated yellow ramp. Neither is configurable, so this redraws
+ * those ramps after the fact.
  *
  * Only `--md-ref-palette-*` shades are redrawn. Every role aliases onto a
  * shade (`--md-sys-color-surface: var(--md-ref-palette-neutral-98)`, and the
@@ -42,8 +42,14 @@ import {
 export const NEUTRAL_CHROMA = 2
 export const NEUTRAL_VARIANT_CHROMA = 2.4
 
-/** Custom colours whose ramps keep the hex's own hue *and* chroma. */
-export const TRUE_CHROMA_COLOURS = ['neutral-1', 'neutral-2']
+/**
+ * Custom colours that are shades *of* the neutral ramp: their ramp is the
+ * neutral ramp, and their hex must be one of its shades. The brand off-white
+ * and near-black were snapped to the nearest one (`#EAE5DA` → neutral-90,
+ * `#36342F` → neutral-22, by CIELAB ΔE), so they belong to the palette rather
+ * than sitting beside it.
+ */
+export const ON_RAMP_COLOURS = ['neutral-1', 'neutral-2']
 
 const schemes = {
   content: SchemeContent,
@@ -60,8 +66,8 @@ const schemes = {
  * the CSS palette name (`neutral`, `neutral-variant`, `neutral-1`).
  *
  * Hues come from the same places `builder()` takes them: the neutral seed for
- * `neutral`, the scheme's own neutral-variant palette (derived from `source`)
- * for `neutral-variant`, and each custom colour's hex.
+ * `neutral` and the scheme's own neutral-variant palette (derived from
+ * `source`) for `neutral-variant`. `ON_RAMP_COLOURS` reuse the neutral ramp.
  */
 export function overridePalettes({ source, scheme = 'tonalSpot', contrast = 0, neutral, customColors = [] }) {
   const Scheme = schemes[scheme]
@@ -73,11 +79,18 @@ export function overridePalettes({ source, scheme = 'tonalSpot', contrast = 0, n
     neutral: TonalPalette.fromHueAndChroma(neutralHue, NEUTRAL_CHROMA),
     'neutral-variant': TonalPalette.fromHueAndChroma(base.neutralVariantPalette.hue, NEUTRAL_VARIANT_CHROMA),
   }
-  for (const name of TRUE_CHROMA_COLOURS) {
+  for (const name of ON_RAMP_COLOURS) {
     const colour = customColors.find((c) => c.name === name)
-    if (!colour) throw new Error(`${name} is listed in TRUE_CHROMA_COLOURS but the seed has no such custom colour`)
-    if (colour.blend) throw new Error(`${name} has blend: true, which would move its hue off the hex this ramp is drawn from`)
-    palettes[name] = TonalPalette.fromInt(argbFromHex(colour.hex))
+    if (!colour) throw new Error(`${name} is listed in ON_RAMP_COLOURS but the seed has no such custom colour`)
+    // Its hex has to *be* a neutral shade, or `bg-neutral-1` and the ramp it
+    // claims to belong to would disagree. Moving the neutral seed or chroma
+    // moves every shade, so this fails until the hex is re-snapped.
+    const tone = Math.round(Hct.fromInt(argbFromHex(colour.hex)).tone)
+    const shade = hexFromArgb(palettes.neutral.tone(tone))
+    if (shade.toLowerCase() !== colour.hex.toLowerCase()) {
+      throw new Error(`${name} (${colour.hex}) is not a shade of the neutral ramp — neutral-${tone} is ${shade.toUpperCase()}`)
+    }
+    palettes[name] = palettes.neutral
   }
   return palettes
 }

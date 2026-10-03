@@ -71,14 +71,14 @@ export const pmndrsMtb = {
     { name: 'accent-6', hex: '#2BDCF6', blend: false }, // blue
     { name: 'accent-7', hex: '#CAF543', blend: false }, // lime-green
     /**
-     * The brand's off-white and near-black, as colours of their own
-     * (`bg-neutral-1`, `bg-neutral-2-900`, …) beside the MD3 neutral ramp that
-     * surfaces use. Neutral-2 is the same hex as the `neutral` seed above.
-     *
-     * Their baked ramps keep each hex's own chroma; `builder()` alone would give
-     * them the primary's and turn both yellow — see `scripts/palette-overrides.mjs`.
+     * The brand's off-white and near-black (`bg-neutral-1`, `bg-neutral-2-900`,
+     * …), snapped onto the neutral ramp the surfaces use: neutral-90 (from
+     * `#EAE5DA`) and neutral-22 (from `#36342F`). The baked ramps of both *are*
+     * that ramp, and the build fails if either hex drifts off it — see
+     * `scripts/palette-overrides.mjs`. `builder()` alone gives them the
+     * primary's chroma instead, and turns both yellow.
      */
-    { name: 'neutral-1', hex: '#EAE5DA', blend: false }, // off-white
-    { name: 'neutral-2', hex: '#36342F', blend: false }, // near-black
+    { name: 'neutral-1', hex: '#E6E2DD', blend: false }, // off-white, neutral-90
+    { name: 'neutral-2', hex: '#363532', blend: false }, // near-black, neutral-22
   ],
 } satisfies MtbConfig

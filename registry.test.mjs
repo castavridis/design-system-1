@@ -116,8 +116,8 @@ test('every Figma role resolves to the hex the baked CSS gives it', () => {
 
 /**
  * What the overrides are for, measured on the output rather than trusted from
- * the code: the surfaces are warm grey, and Neutral-1/2 keep the chroma of
- * their hex instead of the primary's.
+ * the code: the surfaces are warm grey, and Neutral-1/2 sit on that same ramp
+ * instead of taking the primary's chroma.
  */
 test('the baked neutral ramps carry the overridden chroma', () => {
   const root = registry.items.find((item) => item.name === 'md3').css[':root']
@@ -125,13 +125,13 @@ test('the baked neutral ramps carry the overridden chroma', () => {
   const expected = {
     neutral: NEUTRAL_CHROMA,
     'neutral-variant': NEUTRAL_VARIANT_CHROMA,
-    'neutral-1': Hct.fromInt(argbFromHex('#EAE5DA')).chroma,
-    'neutral-2': Hct.fromInt(argbFromHex('#36342F')).chroma,
+    'neutral-1': NEUTRAL_CHROMA,
+    'neutral-2': NEUTRAL_CHROMA,
   }
 
   // Mid tones, where sRGB can hold the chroma asked for. 8-bit rounding moves a
   // chroma-2 shade by up to ~0.5 (more in the darks); 1 still tells 2 from the
-  // scheme's 10, and Neutral-1's ~5 from the primary's ~70.
+  // scheme's 10, and Neutral-1/2's 2 from the primary's ~70.
   const off = Object.entries(expected).flatMap(([palette, chroma]) =>
     [30, 50, 70]
       .map((tone) => [tone, chromaOf(palette, tone)])

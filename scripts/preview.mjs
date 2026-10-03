@@ -44,10 +44,10 @@ const BRAND = {
     ['accent-6', '#2BDCF6'], // blue
     ['accent-7', '#CAF543'], // lime-green
   ],
-  // The brand's off-white and near-black, as custom colours with their own ramps.
+  // The brand's off-white and near-black, snapped onto the neutral ramp.
   neutrals: [
-    ['neutral-1', '#EAE5DA'], // off-white
-    ['neutral-2', '#36342F'], // near-black
+    ['neutral-1', '#E6E2DD'], // off-white, neutral-90
+    ['neutral-2', '#363532'], // near-black, neutral-22
   ],
 }
 
@@ -356,7 +356,7 @@ const html = `<!doctype html>
       html += '</div>'
 
       html += '<h2>Neutral colours</h2>'
-      html += '<p class="legend">The brand off-white and near-black as custom colours (<code>bg-neutral-1</code>, <code>bg-neutral-2-900</code> …). Their ramps keep the chroma of each hex, so they stay grey; the swatches are the tone-40 role, and the authored hex sits at about tone 91 (Neutral 1) and 22 (Neutral 2) of its ramp.</p>'
+      html += '<p class="legend">The brand off-white and near-black as custom colours (<code>bg-neutral-1</code>, <code>bg-neutral-2-900</code> …). Both are shades of the neutral ramp the surfaces use, neutral-90 and neutral-22, and that ramp is their ramp; the swatches are the tone-40 role.</p>'
       html += '<div class="brand">'
       for (const b of d.neutrals) {
         html += '<div class="role"><div class="pair" style="' + pairStyle() + '">' + swatches(b) +
