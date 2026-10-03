@@ -2,11 +2,11 @@
 
 Source files for the pmndrs logo.
 
-| File                | What it is                              |
-| ------------------- | --------------------------------------- |
-| `logo_complete.png` | The full mark, 600×600                  |
-| `logo_idle.png`     | The idle state, 600×600                 |
-| `logo_animated.svg` | The mark as vector, with animation data |
+| File                | What it is                                                 |
+| ------------------- | ---------------------------------------------------------- |
+| `logo_complete.png` | The full mark, 600×600                                     |
+| `logo_idle.png`     | The idle state, 600×600                                    |
+| `logo_animated.svg` | Idle → complete in CSS, 0.73 s; still under reduced motion |
 
 ## Attribution
 
