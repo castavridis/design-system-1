@@ -330,16 +330,35 @@ const html = `<!doctype html>
     header p { margin: 0; color: var(--muted); }
     main { padding: 8px 40px 64px; }
     h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 36px 0 12px; }
-    .toggle { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 14px 40px; background: var(--bg); backdrop-filter: blur(6px); border-bottom: 1px solid var(--border); }
-    .toggle button .chip { display: inline-block; vertical-align: -2px; margin-right: 6px; }
-    .toggle button { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--fg); cursor: pointer; }
-    .toggle button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 600; }
-    .toggle .grp-label { font-size: 12px; color: var(--muted); }
-    .toggle .sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 4px; }
-    .toggle .note { color: var(--muted); font-size: 12px; margin-left: 4px; }
-    .toggle .break { flex-basis: 100%; height: 0; }
-    .toggle button:disabled { opacity: .35; cursor: not-allowed; }
-    .toggle button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+    /* Controls: two labelled rows (colours, display) and a one-line summary. */
+    .controls { position: sticky; top: 0; z-index: 2; display: grid; gap: 10px; padding: 14px 40px 12px; background: var(--bg); border-bottom: 1px solid var(--border); }
+    .controls .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px; }
+    .controls .field { display: flex; align-items: center; gap: 10px; }
+    .controls .label { font-size: 12px; color: var(--muted); min-width: 64px; }
+    .controls button { font: inherit; color: var(--fg); cursor: pointer; }
+    .controls button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+    /* Colour pickers: one swatch per brand hue, the name on hover and in the summary. */
+    .swatches { display: flex; align-items: center; gap: 6px; }
+    .swatch { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 2px solid var(--bg); box-shadow: 0 0 0 1px var(--border); }
+    .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--fg); }
+    .swatch:disabled { opacity: .2; cursor: not-allowed; }
+    .auto { height: 24px; padding: 0 9px; border-radius: 999px; border: 1px dashed var(--border); background: transparent; font-size: 12px; }
+    .auto[aria-pressed="true"] { border: 1px solid var(--fg); background: var(--fg); color: var(--bg); }
+    /* Segmented choices. */
+    .seg { display: inline-flex; padding: 2px; border: 1px solid var(--border); border-radius: 999px; }
+    .seg button { border: 0; background: transparent; padding: 4px 12px; border-radius: 999px; font-size: 13px; }
+    .seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); font-weight: 600; }
+    /* On/off switches. */
+    .switch { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; padding: 0; font-size: 13px; }
+    .switch .track { position: relative; width: 32px; height: 18px; border-radius: 999px; background: var(--border); transition: background .15s ease; flex: none; }
+    .switch .track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--bg); transition: transform .15s ease; }
+    .switch[aria-checked="true"] .track { background: var(--fg); }
+    .switch[aria-checked="true"] .track::after { transform: translateX(14px); }
+    .switch .hint { color: var(--muted); font-size: 12px; }
+    .summary { margin: 0; color: var(--muted); font-size: 12px; }
+    @media (prefers-reduced-motion: reduce) { .switch .track, .switch .track::after { transition: none; } }
+    /* On a phone the panel would cover most of the screen, so it scrolls away there. */
+    @media (max-width: 700px) { .controls { position: static; padding: 12px 16px; } header, main, .logos { padding-left: 16px; padding-right: 16px; } }
     .group { margin-bottom: 24px; }
     .group h3 { font-size: 13px; text-transform: capitalize; margin: 0 0 8px; color: var(--fg); }
     .roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
@@ -395,33 +414,29 @@ const html = `<!doctype html>
 <body>
   <header>
     <h1>pmndrs design system — brand palette</h1>
-    <p>Computed live from the seed (7 accents + 2 neutrals, vibrant scheme; neutrals at chroma 2) · try brand hues as primary, secondary and tertiary, toggle fidelity and light/dark below</p>
+    <p>The palette the registry ships, computed live from the seed. Try the brand hues as primary, secondary and tertiary, and see the result in light and dark.</p>
   </header>
-  <div class="toggle">
-    <span class="grp-label">Primary:</span>
-    ${PRIMARIES.map(([key, name, hex]) => `<button id="p-${key}" aria-pressed="${key === 'accent-7'}"><span class="chip" style="background:${hex}"></span>${name}</button>`).join('\n    ')}
-    <span class="sep"></span>
-    <span class="grp-label">Fidelity:</span>
-    <button id="t-harmonized" aria-pressed="false">Harmonized</button>
-    <button id="t-exact" aria-pressed="true">Exact</button>
-    <span class="sep"></span>
-    <span class="grp-label">Contrast:</span>
-    ${CONTRASTS.map(([level, , label]) => `<button id="c-${level}" aria-pressed="${level === 'standard'}">${label}</button>`).join('\n    ')}
-    <span class="sep"></span>
-    <span class="grp-label">Mode:</span>
-    <button id="m-both" aria-pressed="true">Both</button>
-    <button id="m-light" aria-pressed="false">Light</button>
-    <button id="m-dark" aria-pressed="false">Dark</button>
-    <button id="m-both-primary" aria-pressed="false">Both (Primary)</button>
-    <button id="m-light-primary" aria-pressed="false">Light (Primary)</button>
-    <button id="m-dark-primary" aria-pressed="false">Dark (Primary)</button>
-    <span class="break"></span>
-    ${['secondary', 'tertiary'].map((which) => `<span class="grp-label">${which[0].toUpperCase() + which.slice(1)}:</span>
-    <button id="${which[0]}-auto" aria-pressed="true" title="Derived from the primary by MD3">Auto</button>
-    ${PRIMARIES.map(([key, name, hex]) => `<button id="${which[0]}-${key}" aria-pressed="false"><span class="chip" style="background:${hex}"></span>${name}</button>`).join('\n    ')}
-    <span class="sep"></span>`).join('\n    ')}
-    <button id="u-unique" aria-pressed="true" title="Keep primary, secondary and tertiary on different brand hues">Unique</button>
-    <span class="note" id="toggle-note"></span>
+  <div class="controls" role="toolbar" aria-label="Palette options">
+    <div class="row">
+      <div class="field"><span class="label" id="l-primary">Primary</span>
+        <div class="swatches" role="group" aria-labelledby="l-primary">${PRIMARIES.map(([key, name, hex]) => `<button class="swatch" id="p-${key}" style="background:${hex}" title="${name} ${hex}" aria-label="${name}" aria-pressed="${key === 'accent-7'}"></button>`).join('')}</div>
+      </div>
+      ${['secondary', 'tertiary'].map((which) => `<div class="field"><span class="label" id="l-${which}">${which[0].toUpperCase() + which.slice(1)}</span>
+        <div class="swatches" role="group" aria-labelledby="l-${which}"><button class="auto" id="${which[0]}-auto" title="Derived from the primary" aria-pressed="true">Auto</button>${PRIMARIES.map(([key, name, hex]) => `<button class="swatch" id="${which[0]}-${key}" style="background:${hex}" title="${name} ${hex}" aria-label="${name}" aria-pressed="false"></button>`).join('')}</div>
+      </div>`).join('\n      ')}
+      <button class="switch" id="sw-unique" role="switch" aria-checked="true" title="Keep primary, secondary and tertiary on different brand hues"><span class="track"></span>Unique colours</button>
+    </div>
+    <div class="row">
+      <div class="field"><span class="label" id="l-mode">Mode</span>
+        <div class="seg" role="group" aria-labelledby="l-mode"><button id="m-light" aria-pressed="false">Light</button><button id="m-dark" aria-pressed="false">Dark</button><button id="m-both" aria-pressed="true">Both</button></div>
+      </div>
+      <div class="field"><span class="label" id="l-contrast">Contrast</span>
+        <div class="seg" role="group" aria-labelledby="l-contrast">${CONTRASTS.map(([level, , label]) => `<button id="c-${level}" aria-pressed="${level === 'standard'}">${label}</button>`).join('')}</div>
+      </div>
+      <button class="switch" id="sw-tint" role="switch" aria-checked="false" title="Surfaces, text and outlines take a hint of the primary"><span class="track"></span>Tint neutrals</button>
+      <button class="switch" id="sw-match" role="switch" aria-checked="true" title="On: accents keep their exact brand hex. Off: harmonized toward the primary."><span class="track"></span>Color match</button>
+    </div>
+    <p class="summary" id="summary" aria-live="polite"></p>
   </div>
   <section class="logos">
     <h2>Logo (registry item <code>logo</code>)</h2>
@@ -441,7 +456,9 @@ const html = `<!doctype html>
     // A third axis picks the primary: each brand hue's pure hex as the seed.
     // Secondary and tertiary are 'auto' (MD3 derives them from the primary) or a
     // brand hue's key; with Unique on, no two of the three share a brand hue.
-    const state = { primary: 'accent-7', secondary: 'auto', tertiary: 'auto', unique: true, fidelity: 'exact', contrast: 'standard', view: 'both' }
+    // The controls set mode, tint and match; view and fidelity follow from them
+    // (in update) and are what the rendering reads.
+    const state = { primary: 'accent-7', secondary: 'auto', tertiary: 'auto', unique: true, mode: 'both', tint: false, match: true, contrast: 'standard', view: 'both', fidelity: 'exact' }
     const PRIMARIES = ${JSON.stringify(PRIMARIES)}
     const ROLE_SEEDS = JSON.parse(document.getElementById('role-seeds').textContent)
     const hueName = (key) => (key === 'auto' ? 'Auto' : PRIMARIES.find(([k]) => k === key)[1])
@@ -552,7 +569,7 @@ const html = `<!doctype html>
       }
 
       html += '<h2>Accent colours</h2>'
-      html += '<p class="legend">The six non-primary brand hues, exposed as named custom colours (<code>bg-accent-1</code> … <code>bg-accent-6</code>). The chip is the authored value; swatches are the MD3 role it generates — the Fidelity toggle changes how close that stays to the authored hex.' +
+      html += '<p class="legend">The six non-primary brand hues, exposed as named custom colours (<code>bg-accent-1</code> … <code>bg-accent-6</code>). The chip is the authored value; swatches are the MD3 role it generates — Color match keeps it on the authored hex; off, it is harmonized toward the primary.' +
         (picked.size ? ' Hues picked as secondary or tertiary are left out here; they show in those groups.' : '') + '</p>'
       html += '<div class="brand">'
       for (const b of d.accents.filter((a) => !picked.has(a.name))) {
@@ -604,10 +621,6 @@ const html = `<!doctype html>
     }
     prefersDark.addEventListener('change', theme)
 
-    const notes = {
-      harmonized: 'blend: true — hues nudged toward the seed for cohesion',
-      exact: 'blend: false — hues kept true to the authored hex',
-    }
     // With Unique on, a seeded secondary or tertiary may not share the primary's
     // hue or each other's. Their taken hues are disabled; changing the primary
     // (or switching Unique on) onto a taken hue moves the role that now clashes
@@ -620,11 +633,11 @@ const html = `<!doctype html>
         if (state[which] === 'auto' || !others.includes(state[which])) return
         const was = state[which]
         state[which] = order.find((key) => !others.includes(key))
-        moved.push(which + ' ' + hueName(was) + ' → ' + hueName(state[which]))
+        moved.push(which + ' from ' + hueName(was) + ' to ' + hueName(state[which]))
       }
       settle('secondary', [state.primary, state.tertiary].filter((k) => k !== 'auto'))
       settle('tertiary', [state.primary, state.secondary].filter((k) => k !== 'auto'))
-      return moved.length ? 'Unique moved ' + moved.join(', ') : ''
+      return moved.length ? 'Moved ' + moved.join(' and ') + ' to keep the colours unique.' : ''
     }
     const takenFor = (which) => (state.unique ? [state.primary, state[which === 'secondary' ? 'tertiary' : 'secondary']] : [])
 
@@ -632,12 +645,14 @@ const html = `<!doctype html>
       primary: Object.fromEntries(PRIMARIES.map(([key]) => [key, 'p-' + key])),
       secondary: Object.fromEntries([['auto', 's-auto'], ...PRIMARIES.map(([key]) => [key, 's-' + key])]),
       tertiary: Object.fromEntries([['auto', 't-auto'], ...PRIMARIES.map(([key]) => [key, 't-' + key])]),
-      fidelity: { harmonized: 't-harmonized', exact: 't-exact' },
       contrast: { standard: 'c-standard', medium: 'c-medium', high: 'c-high' },
-      view: { both: 'm-both', light: 'm-light', dark: 'm-dark', 'both-primary': 'm-both-primary', 'light-primary': 'm-light-primary', 'dark-primary': 'm-dark-primary' },
+      mode: { light: 'm-light', dark: 'm-dark', both: 'm-both' },
     }
+    const switches = { unique: 'sw-unique', tint: 'sw-tint', match: 'sw-match' }
     let lastMove = ''
     function update() {
+      state.view = state.tint ? state.mode + '-primary' : state.mode
+      state.fidelity = state.match ? 'exact' : 'harmonized'
       for (const [g, opts] of Object.entries(groups)) {
         for (const [val, id] of Object.entries(opts)) document.getElementById(id).setAttribute('aria-pressed', String(state[g] === val))
       }
@@ -645,22 +660,22 @@ const html = `<!doctype html>
         const taken = takenFor(which)
         for (const [key] of PRIMARIES) document.getElementById(which[0] + '-' + key).disabled = taken.includes(key)
       }
-      document.getElementById('u-unique').setAttribute('aria-pressed', String(state.unique))
+      for (const [key, id] of Object.entries(switches)) document.getElementById(id).setAttribute('aria-checked', String(state[key]))
+      // One plain sentence for what is on screen.
       const [, name, hex] = PRIMARIES.find(([key]) => key === state.primary)
-      document.getElementById('toggle-note').textContent = [
-        name + ' ' + hex + ' as the seed',
-        'secondary ' + hueName(state.secondary) + ', tertiary ' + hueName(state.tertiary),
-        notes[state.fidelity],
-        state.contrast === 'standard' ? '' : state.contrast + ' contrast',
+      const role = (which) => (state[which] === 'auto' ? which + ' from the primary' : hueName(state[which]) + ' ' + which)
+      document.getElementById('summary').textContent = [
+        name + ' (' + hex + ') primary, ' + role('secondary') + ', ' + role('tertiary') + '.',
+        { standard: 'Standard', medium: 'Medium', high: 'High' }[state.contrast] + ' contrast' + (state.tint ? ', tinted neutrals' : '') + ', ' + (state.match ? 'accents match the brand exactly.' : 'accents harmonized toward the primary.'),
         lastMove,
-      ].filter(Boolean).join(' · ')
+      ].filter(Boolean).join(' ')
       theme()
       render()
     }
     for (const [g, opts] of Object.entries(groups)) {
       for (const [val, id] of Object.entries(opts)) document.getElementById(id).onclick = () => { state[g] = val; lastMove = enforceUnique(); update() }
     }
-    document.getElementById('u-unique').onclick = () => { state.unique = !state.unique; lastMove = enforceUnique(); update() }
+    for (const [key, id] of Object.entries(switches)) document.getElementById(id).onclick = () => { state[key] = !state[key]; lastMove = enforceUnique(); update() }
     update()
 
     // A fresh query string loads the SVG as a new document, so its animation starts over.
