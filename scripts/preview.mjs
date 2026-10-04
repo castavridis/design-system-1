@@ -54,8 +54,11 @@ const BRAND = {
 // The primaries the page can switch between: each brand hue's pure hex as the
 // seed, lime first since it is the one that ships. Only a preview — the
 // published palette keeps `pmndrsMtb.source`.
-const PRIMARY_NAMES = { 'accent-7': 'Lime', 'accent-1': 'Purple', 'accent-2': 'Red', 'accent-3': 'Orange', 'accent-4': 'Yellow', 'accent-5': 'Teal', 'accent-6': 'Blue' }
-const PRIMARIES = Object.keys(PRIMARY_NAMES).map((key) => [key, PRIMARY_NAMES[key], Object.fromEntries(BRAND.accents)[key]])
+// Human names for the brand hues, in the order the page lists them. The CSS
+// names stay accent-1 … accent-7: renaming those would break installs.
+const COLOR_NAMES = { 'accent-7': 'Lime', 'accent-5': 'Teal', 'accent-6': 'Cyan', 'accent-1': 'Purple', 'accent-2': 'Red', 'accent-3': 'Orange', 'accent-4': 'Yellow' }
+const COLOR_ORDER = Object.keys(COLOR_NAMES)
+const PRIMARIES = COLOR_ORDER.map((key) => [key, COLOR_NAMES[key], Object.fromEntries(BRAND.accents)[key]])
 
 // Neutral-1/2 never blend: they are shades of the neutral ramp either way.
 // `extra` carries the optional secondary / tertiary seeds.
@@ -201,9 +204,9 @@ const model = (blend, source = BRAND.source, contrast = BRAND.contrast) => {
 
   // Accent colours: base role per accent, paired with its authored hex.
   const srcOf = Object.fromEntries(BRAND.accents)
-  const accents = BRAND.accents.map(([name]) => {
+  const accents = COLOR_ORDER.map((name) => {
     const r = roleOf(`--md-sys-color-${name}`)
-    return { name, label: `Accent ${name.replace('accent-', '')}`, authored: srcOf[name], light: r.light, dark: r.dark, lightPrimary: r.lightPrimary, darkPrimary: r.darkPrimary, ...familyRoles(name) }
+    return { name, label: COLOR_NAMES[name], authored: srcOf[name], light: r.light, dark: r.dark, lightPrimary: r.lightPrimary, darkPrimary: r.darkPrimary, ...familyRoles(name) }
   })
 
   // Neutral-1/2: the same shape, so they render with the accents' swatch markup.
@@ -225,7 +228,7 @@ const model = (blend, source = BRAND.source, contrast = BRAND.contrast) => {
   for (const ramp of Object.values(tonal)) ramp.sort((a, b) => a.tone - b.tone)
 
   // Order: primary first, then the accents, then the structural ramps.
-  const RAMP_ORDER = ['primary', 'accent-1', 'accent-2', 'accent-3', 'accent-4', 'accent-5', 'accent-6', 'accent-7', 'neutral-1', 'neutral-2', 'error', 'neutral', 'neutral-variant']
+  const RAMP_ORDER = ['primary', ...COLOR_ORDER, 'neutral-1', 'neutral-2', 'error', 'neutral', 'neutral-variant']
   const ordered = {}
   for (const k of RAMP_ORDER) if (tonal[k]) ordered[k] = tonal[k]
   for (const k of Object.keys(tonal)) if (!(k in ordered)) ordered[k] = tonal[k]
@@ -233,7 +236,7 @@ const model = (blend, source = BRAND.source, contrast = BRAND.contrast) => {
   // For each brand colour, the step in its own ramp closest to the authored hex.
   const nearest = [
     { label: 'Primary', authored: source, ...nearestIn(source, ordered.primary) },
-    ...BRAND.accents.map(([name], i) => ({ name, label: `Accent ${i + 1}`, authored: srcOf[name], ...nearestIn(srcOf[name], ordered[name]) })),
+    ...COLOR_ORDER.map((name) => ({ name, label: COLOR_NAMES[name], authored: srcOf[name], ...nearestIn(srcOf[name], ordered[name]) })),
     ...BRAND.neutrals.map(([name], i) => ({ label: `Neutral ${i + 1}`, authored: neutralSrc[name], ...nearestIn(neutralSrc[name], ordered[name]) })),
   ].map((n) => ({ ...n, de: Math.round(n.de) }))
 
@@ -330,35 +333,36 @@ const html = `<!doctype html>
     header p { margin: 0; color: var(--muted); }
     main { padding: 8px 40px 64px; }
     h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 36px 0 12px; }
-    /* Controls: two labelled rows (colours, display) and a one-line summary. */
-    .controls { position: sticky; top: 0; z-index: 2; display: grid; gap: 10px; padding: 14px 40px 12px; background: var(--bg); border-bottom: 1px solid var(--border); }
-    .controls .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px; }
-    .controls .field { display: flex; align-items: center; gap: 10px; }
-    .controls .label { font-size: 12px; color: var(--muted); min-width: 64px; }
+    /* Controls: a vertical sheet floating at the right; the page leaves room for it. */
+    .controls { position: fixed; top: 16px; right: 16px; z-index: 3; width: 324px; max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 18px; padding: 18px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); }
+    header, .logos, main { padding-right: 380px; }
+    .controls h2 { margin: 0; }
+    .controls section { display: grid; gap: 12px; }
+    .controls .field { display: grid; gap: 6px; }
+    .controls .label { font-size: 12px; color: var(--muted); }
     .controls button { font: inherit; color: var(--fg); cursor: pointer; }
-    .controls button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
-    /* Colour pickers: one swatch per brand hue, the name on hover and in the summary. */
-    .swatches { display: flex; align-items: center; gap: 6px; }
-    .swatch { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 2px solid var(--bg); box-shadow: 0 0 0 1px var(--border); }
+    .controls button:focus-visible, .check input:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+    /* Colour pickers: one swatch per brand hue; the name is on hover and in the label. */
+    .swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .swatch { width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--border); }
     .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--fg); }
     .swatch:disabled { opacity: .2; cursor: not-allowed; }
-    .auto { height: 24px; padding: 0 9px; border-radius: 999px; border: 1px dashed var(--border); background: transparent; font-size: 12px; }
-    .auto[aria-pressed="true"] { border: 1px solid var(--fg); background: var(--fg); color: var(--bg); }
-    /* Segmented choices. */
-    .seg { display: inline-flex; padding: 2px; border: 1px solid var(--border); border-radius: 999px; }
-    .seg button { border: 0; background: transparent; padding: 4px 12px; border-radius: 999px; font-size: 13px; }
-    .seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); font-weight: 600; }
-    /* On/off switches. */
-    .switch { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; padding: 0; font-size: 13px; }
-    .switch .track { position: relative; width: 32px; height: 18px; border-radius: 999px; background: var(--border); transition: background .15s ease; flex: none; }
-    .switch .track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--bg); transition: transform .15s ease; }
-    .switch[aria-checked="true"] .track { background: var(--fg); }
-    .switch[aria-checked="true"] .track::after { transform: translateX(14px); }
-    .switch .hint { color: var(--muted); font-size: 12px; }
-    .summary { margin: 0; color: var(--muted); font-size: 12px; }
-    @media (prefers-reduced-motion: reduce) { .switch .track, .switch .track::after { transition: none; } }
-    /* On a phone the panel would cover most of the screen, so it scrolls away there. */
-    @media (max-width: 700px) { .controls { position: static; padding: 12px 16px; } header, main, .logos { padding-left: 16px; padding-right: 16px; } }
+    .auto { height: 26px; padding: 0 10px; border-radius: 999px; border: 1px dashed var(--border); background: transparent; font-size: 12px; }
+    .auto[aria-pressed="true"] { border: 1px solid var(--fg); background: var(--fg); color: var(--panel); }
+    /* Segmented choices, full width in the sheet. */
+    .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 2px; border: 1px solid var(--border); border-radius: 999px; }
+    .seg button { border: 0; background: transparent; padding: 5px 8px; border-radius: 999px; font-size: 13px; }
+    .seg button[aria-pressed="true"] { background: var(--fg); color: var(--panel); font-weight: 600; }
+    /* Checkboxes. */
+    .check { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+    .check input { width: 16px; height: 16px; margin: 0; accent-color: var(--fg); cursor: pointer; }
+    .summary { margin: 0; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; line-height: 1.45; }
+    /* Narrow screens: no room to float, so the sheet sits at the top and scrolls away. */
+    @media (max-width: 900px) {
+      .controls { position: static; width: auto; max-height: none; margin: 0 16px; box-shadow: none; }
+      header, .logos, main { padding-right: 16px; }
+      header, main, .logos { padding-left: 16px; }
+    }
     .group { margin-bottom: 24px; }
     .group h3 { font-size: 13px; text-transform: capitalize; margin: 0 0 8px; color: var(--fg); }
     .roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
@@ -406,9 +410,11 @@ const html = `<!doctype html>
     .logo img { display: block; width: 100%; height: auto; aspect-ratio: 1; }
     .logo figcaption { flex: 1; padding: 8px 10px; background: var(--panel); display: flex; flex-direction: column; gap: 2px; }
     .logo .file { font-size: 11px; color: var(--muted); }
-    .logo-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0 0; }
-    .logo-actions .legend { margin: 0; }
-    .logo-actions button { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--fg); cursor: pointer; }
+    .logo-note { margin: 12px 0 0; }
+    .lbl-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .replay { font: inherit; font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--fg); cursor: pointer; }
+    .replay:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+    @media (max-width: 900px) { .logos { padding-left: 16px; padding-right: 16px; } }
   </style>
 </head>
 <body>
@@ -416,34 +422,36 @@ const html = `<!doctype html>
     <h1>pmndrs design system — brand palette</h1>
     <p>The palette the registry ships, computed live from the seed. Try the brand hues as primary, secondary and tertiary, and see the result in light and dark.</p>
   </header>
-  <div class="controls" role="toolbar" aria-label="Palette options">
-    <div class="row">
+  <aside class="controls" aria-label="Palette options">
+    <section aria-labelledby="h-colors">
+      <h2 id="h-colors">Colors</h2>
       <div class="field"><span class="label" id="l-primary">Primary</span>
         <div class="swatches" role="group" aria-labelledby="l-primary">${PRIMARIES.map(([key, name, hex]) => `<button class="swatch" id="p-${key}" style="background:${hex}" title="${name} ${hex}" aria-label="${name}" aria-pressed="${key === 'accent-7'}"></button>`).join('')}</div>
       </div>
       ${['secondary', 'tertiary'].map((which) => `<div class="field"><span class="label" id="l-${which}">${which[0].toUpperCase() + which.slice(1)}</span>
         <div class="swatches" role="group" aria-labelledby="l-${which}"><button class="auto" id="${which[0]}-auto" title="Derived from the primary" aria-pressed="true">Auto</button>${PRIMARIES.map(([key, name, hex]) => `<button class="swatch" id="${which[0]}-${key}" style="background:${hex}" title="${name} ${hex}" aria-label="${name}" aria-pressed="false"></button>`).join('')}</div>
       </div>`).join('\n      ')}
-      <button class="switch" id="sw-unique" role="switch" aria-checked="true" title="Keep primary, secondary and tertiary on different brand hues"><span class="track"></span>Unique colours</button>
-    </div>
-    <div class="row">
+      <label class="check" title="Keep primary, secondary and tertiary on different brand hues"><input type="checkbox" id="sw-unique" checked /> Use unique colors</label>
+    </section>
+    <section aria-labelledby="h-display">
+      <h2 id="h-display">Display</h2>
       <div class="field"><span class="label" id="l-mode">Mode</span>
         <div class="seg" role="group" aria-labelledby="l-mode"><button id="m-light" aria-pressed="false">Light</button><button id="m-dark" aria-pressed="false">Dark</button><button id="m-both" aria-pressed="true">Both</button></div>
       </div>
       <div class="field"><span class="label" id="l-contrast">Contrast</span>
         <div class="seg" role="group" aria-labelledby="l-contrast">${CONTRASTS.map(([level, , label]) => `<button id="c-${level}" aria-pressed="${level === 'standard'}">${label}</button>`).join('')}</div>
       </div>
-      <button class="switch" id="sw-tint" role="switch" aria-checked="false" title="Surfaces, text and outlines take a hint of the primary"><span class="track"></span>Tint neutrals</button>
-      <button class="switch" id="sw-match" role="switch" aria-checked="true" title="On: accents keep their exact brand hex. Off: harmonized toward the primary."><span class="track"></span>Color match</button>
-    </div>
+      <label class="check" title="Surfaces, text and outlines take a hint of the primary"><input type="checkbox" id="sw-tint" /> Tint neutrals</label>
+      <label class="check" title="Checked: accents keep their exact brand hex. Unchecked: harmonized toward the primary."><input type="checkbox" id="sw-match" checked /> Color match</label>
+    </section>
     <p class="summary" id="summary" aria-live="polite"></p>
-  </div>
+  </aside>
   <section class="logos">
     <h2>Logo (registry item <code>logo</code>)</h2>
     <div class="logo-grid">
-      ${LOGOS.map(([file, label, note]) => `<figure class="logo"><img src="logos/${file}" alt="pmndrs logo, ${label.toLowerCase()}" width="600" height="600" /><figcaption><span class="lbl">${label}</span><span class="file">${note} · ${file}</span></figcaption></figure>`).join('\n      ')}
+      ${LOGOS.map(([file, label, note]) => `<figure class="logo"><img src="logos/${file}" alt="pmndrs logo, ${label.toLowerCase()}" width="600" height="600" /><figcaption><span class="lbl-row"><span class="lbl">${label}</span>${file === 'logo_animated.svg' ? '<button class="replay" id="logo-replay">Replay</button>' : ''}</span><span class="file">${note} · ${file}</span></figcaption></figure>`).join('\n      ')}
     </div>
-    <p class="logo-actions"><button id="logo-replay">Replay</button><span class="legend">The animation is CSS inside each SVG, so a plain &lt;img&gt; plays it. Under reduced motion the one-shot holds still and the loader only fades.</span></p>
+    <p class="legend logo-note"><span>The animation is CSS inside each SVG, so a plain &lt;img&gt; plays it. Under reduced motion the one-shot holds still and the loader only fades.</span></p>
   </section>
   <main id="app"></main>
   <script id="data" type="application/json">${JSON.stringify(data)}</script>
@@ -461,6 +469,10 @@ const html = `<!doctype html>
     const state = { primary: 'accent-7', secondary: 'auto', tertiary: 'auto', unique: true, mode: 'both', tint: false, match: true, contrast: 'standard', view: 'both', fidelity: 'exact' }
     const PRIMARIES = ${JSON.stringify(PRIMARIES)}
     const ROLE_SEEDS = JSON.parse(document.getElementById('role-seeds').textContent)
+    const COLOR_NAMES = ${JSON.stringify(COLOR_NAMES)}
+    const cap = (word) => word[0].toUpperCase() + word.slice(1)
+    // 'Primary (Lime)', 'Secondary (Cyan)', 'Tertiary (Auto)'.
+    const roleTitle = (which) => cap(which) + ' (' + hueName(state[which]) + ')'
     const hueName = (key) => (key === 'auto' ? 'Auto' : PRIMARIES.find(([k]) => k === key)[1])
     const familyOf = (which) => ROLE_SEEDS[state.primary][state.contrast][which][state[which]]
 
@@ -514,11 +526,12 @@ const html = `<!doctype html>
         // Material Theme Builder pairs them; \`short\` cells hold one line.
         const c = (label, bg, fg, short) => '<div class="m3-cell' + (short ? ' short' : '') + '" style="background:' + v(bg) + ';color:' + (fg ? v(fg) : ink(v(bg))) + '">' +
           '<span>' + label + '</span><span class="h">' + v(bg) + '</span></div>'
-        const column = (role, label) => '<div class="m3-col">' +
-          c(label, role, 'on-' + role) + c('On ' + label, 'on-' + role, role, true) +
+        // The first cell carries the colour's name when it has one: Primary (Lime).
+        const column = (role, label, title = label) => '<div class="m3-col">' +
+          c(title, role, 'on-' + role) + c('On ' + label, 'on-' + role, role, true) +
           c(label + ' Container', role + '-container', 'on-' + role + '-container') + c('On ' + label + ' Container', 'on-' + role + '-container', role + '-container', true) + '</div>'
         let h = '<div class="m3" style="background:' + v('surface') + ';color:' + v('on-surface') + '"><h3>' + SCHEME_TITLES[scheme] + '</h3>'
-        h += '<div class="m3-split"><div class="m3-cols">' + column('primary', 'Primary') + column('secondary', 'Secondary') + column('tertiary', 'Tertiary') + '</div>' + column('error', 'Error') + '</div>'
+        h += '<div class="m3-split"><div class="m3-cols">' + column('primary', 'Primary', roleTitle('primary')) + column('secondary', 'Secondary', roleTitle('secondary')) + column('tertiary', 'Tertiary', roleTitle('tertiary')) + '</div>' + column('error', 'Error') + '</div>'
         h += '<div class="m3-split"><div class="m3-surfaces">'
         h += '<div class="m3-strip" style="grid-template-columns:repeat(3,1fr)">' + c('Surface Dim', 'surface-dim', 'on-surface') + c('Surface', 'surface', 'on-surface') + c('Surface Bright', 'surface-bright', 'on-surface') + '</div>'
         h += '<div class="m3-strip" style="grid-template-columns:repeat(5,1fr)">' + [['Lowest', '-lowest'], ['Low', '-low'], ['', ''], ['High', '-high'], ['Highest', '-highest']].map(([l, k]) => c('Surf. Container' + (l ? ' ' + l : ''), 'surface-container' + k, 'on-surface')).join('') + '</div>'
@@ -533,10 +546,10 @@ const html = `<!doctype html>
         return h + '</div>'
       }
       html += '<h2>Scheme</h2>'
-      html += '<p class="legend">Laid out like Material Theme Builder. Accents (and Neutral 1/2) are the custom-colour rows: Accent 1 Container is MTB\u2019s Custom Color 1 Container. Hues picked as secondary or tertiary show in those columns instead.</p>'
+      html += '<p class="legend">Laid out like Material Theme Builder. Each brand color (and Neutral 1/2) is a custom-color row: Purple Container is MTB\u2019s Custom Color 1 Container. Hues picked as secondary or tertiary show in those columns instead.</p>'
       html += '<div class="schemes">' + VIEWS[state.view].map(schemeCard).join('') + '</div>'
 
-      html += '<h2>Brand colours → nearest ramp step</h2>'
+      html += '<h2>Brand colors → nearest ramp step</h2>'
       html += '<p class="legend">For each brand colour, the closest step in its own ramp (by CIELAB ΔE). The big number is the level (tone); the chip is the authored value.</p>'
       html += '<div class="nearest">'
       const seeded = ['secondary', 'tertiary'].filter((which) => state[which] !== 'auto')
@@ -544,7 +557,8 @@ const html = `<!doctype html>
       // so it drops out of the accents everywhere they are listed.
       const picked = new Set(seeded.map((which) => state[which]))
       const nearest = d.nearest.filter((n) => !picked.has(n.name))
-      nearest.splice(1, 0, ...seeded.map((which) => ({ label: which[0].toUpperCase() + which.slice(1), ...familyOf(which).nearest })))
+      nearest.splice(1, 0, ...seeded.map((which) => ({ label: roleTitle(which), ...familyOf(which).nearest })))
+      nearest[0] = { ...nearest[0], label: roleTitle('primary') }
       for (const n of nearest) {
         html += '<div class="near"><div class="near-sw" style="background:' + n.hex + ';color:' + ink(n.hex) + '">' + n.tone + '</div>' +
           '<div class="near-meta"><span class="lbl">' + n.label + '</span><span class="hex">' + n.hex + '</span>' +
@@ -552,24 +566,8 @@ const html = `<!doctype html>
       }
       html += '</div>'
 
-      html += '<h2>Semantic roles (--md-sys-color-*)</h2>'
-      const shown = {}
-      for (const [name, roles] of Object.entries(d.groups)) {
-        shown[name] = roles
-        if (name === 'primary') for (const which of ['secondary', 'tertiary']) shown[which] = familyOf(which).roles
-      }
-      for (const [name, roles] of Object.entries(shown)) {
-        html += '<section class="group"><h3>' + name + '</h3><div class="roles">'
-        for (const r of roles) {
-          const ref = VIEWS[state.view][0].startsWith('dark') ? (r.darkRef || r.lightRef) : r.lightRef
-          html += '<div class="role"><div class="pair" style="' + pairStyle() + '">' + swatches(r) +
-            '</div><div class="ref">' + ref + '</div></div>'
-        }
-        html += '</div></section>'
-      }
-
-      html += '<h2>Accent colours</h2>'
-      html += '<p class="legend">The six non-primary brand hues, exposed as named custom colours (<code>bg-accent-1</code> … <code>bg-accent-6</code>). The chip is the authored value; swatches are the MD3 role it generates — Color match keeps it on the authored hex; off, it is harmonized toward the primary.' +
+      html += '<h2>Accent colors</h2>'
+      html += '<p class="legend">The brand hues as custom colors (<code>bg-accent-1</code> … <code>bg-accent-7</code>; Lime is <code>accent-7</code>). The chip is the authored value; swatches are the MD3 role it generates — Color match keeps it on the authored hex; off, it is harmonized toward the primary.' +
         (picked.size ? ' Hues picked as secondary or tertiary are left out here; they show in those groups.' : '') + '</p>'
       html += '<div class="brand">'
       for (const b of d.accents.filter((a) => !picked.has(a.name))) {
@@ -578,7 +576,7 @@ const html = `<!doctype html>
       }
       html += '</div>'
 
-      html += '<h2>Neutral colours</h2>'
+      html += '<h2>Neutral colors</h2>'
       html += '<p class="legend">The brand off-white and near-black as custom colours (<code>bg-neutral-1</code>, <code>bg-neutral-2-900</code> …). Both are shades of the neutral ramp the surfaces use, neutral-90 and neutral-22, and that ramp is their ramp; the swatches are the tone-40 role.</p>'
       html += '<div class="brand">'
       for (const b of d.neutrals) {
@@ -595,7 +593,7 @@ const html = `<!doctype html>
         if (hue === 'primary') for (const which of ['secondary', 'tertiary']) ramps[which] = familyOf(which).ramp
       }
       for (const [hue, ramp] of Object.entries(ramps).filter(([hue]) => !picked.has(hue))) {
-        const label = /^accent-\d$/.test(hue) ? 'Accent ' + hue.slice(7) : /^neutral-\d$/.test(hue) ? 'Neutral ' + hue.slice(8) : hue
+        const label = COLOR_NAMES[hue] ?? (/^neutral-\\d$/.test(hue) ? 'Neutral ' + hue.slice(8) : hue)
         html += '<div class="ramp"><div class="ramp-name">' + label + '</div><div class="tones">'
         for (const t of ramp) {
           html += '<div class="tone" title="' + hue + '-' + t.tone + ': ' + t.hex + '" style="background:' + t.hex + ';color:' + ink(t.hex) + '">' + t.tone + '</div>'
@@ -637,7 +635,7 @@ const html = `<!doctype html>
       }
       settle('secondary', [state.primary, state.tertiary].filter((k) => k !== 'auto'))
       settle('tertiary', [state.primary, state.secondary].filter((k) => k !== 'auto'))
-      return moved.length ? 'Moved ' + moved.join(' and ') + ' to keep the colours unique.' : ''
+      return moved.length ? 'Moved ' + moved.join(' and ') + ' to keep the colors unique.' : ''
     }
     const takenFor = (which) => (state.unique ? [state.primary, state[which === 'secondary' ? 'tertiary' : 'secondary']] : [])
 
@@ -660,7 +658,8 @@ const html = `<!doctype html>
         const taken = takenFor(which)
         for (const [key] of PRIMARIES) document.getElementById(which[0] + '-' + key).disabled = taken.includes(key)
       }
-      for (const [key, id] of Object.entries(switches)) document.getElementById(id).setAttribute('aria-checked', String(state[key]))
+      for (const [key, id] of Object.entries(switches)) document.getElementById(id).checked = state[key]
+      for (const which of ['primary', 'secondary', 'tertiary']) document.getElementById('l-' + which).textContent = roleTitle(which)
       // One plain sentence for what is on screen.
       const [, name, hex] = PRIMARIES.find(([key]) => key === state.primary)
       const role = (which) => (state[which] === 'auto' ? which + ' from the primary' : hueName(state[which]) + ' ' + which)
@@ -675,14 +674,14 @@ const html = `<!doctype html>
     for (const [g, opts] of Object.entries(groups)) {
       for (const [val, id] of Object.entries(opts)) document.getElementById(id).onclick = () => { state[g] = val; lastMove = enforceUnique(); update() }
     }
-    for (const [key, id] of Object.entries(switches)) document.getElementById(id).onclick = () => { state[key] = !state[key]; lastMove = enforceUnique(); update() }
+    for (const [key, id] of Object.entries(switches)) document.getElementById(id).onchange = (event) => { state[key] = event.target.checked; lastMove = enforceUnique(); update() }
     update()
 
     // A fresh query string loads the SVG as a new document, so its animation starts over.
     let replays = 0
     document.getElementById('logo-replay').onclick = () => {
-      replays++
-      for (const img of document.querySelectorAll('.logo img')) img.src = img.src.split('?')[0] + '?' + replays
+      const img = document.querySelector('.logo img[src*="logo_animated"]')
+      img.src = img.src.split('?')[0] + '?' + ++replays
     }
   </script>
 </body>
