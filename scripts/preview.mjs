@@ -407,6 +407,7 @@ const html = `<!doctype html>
       </div>`).join('\n      ')}
       <label class="check" title="Keep primary, secondary and tertiary on different brand hues"><input type="checkbox" id="sw-unique" checked /> Use unique colors</label>
       <label class="check" title="Checked: brand colors are harmonized toward the primary. Unchecked: they keep their exact hex."><input type="checkbox" id="sw-harmonize" /> Use harmonized colors</label>
+      <label class="check" title="Swap the neutrals: surfaces and text take the primary's hue, outlines and secondary text go grey"><input type="checkbox" id="sw-tint" /> Tint neutrals</label>
     </section>
     <section aria-labelledby="h-display">
       <h2 id="h-display">Display</h2>
@@ -416,7 +417,6 @@ const html = `<!doctype html>
       <div class="field"><span class="label" id="l-mode">Mode</span>
         <div class="seg" role="group" aria-labelledby="l-mode"><button id="m-light" aria-pressed="false">Light</button><button id="m-dark" aria-pressed="false">Dark</button></div>
       </div>
-      <label class="check" title="Swap the neutrals: surfaces and text take the primary's hue, outlines and secondary text go grey"><input type="checkbox" id="sw-tint" /> Tint neutrals</label>
     </section>
     <p class="summary" id="summary" aria-live="polite"></p>
   </aside>
