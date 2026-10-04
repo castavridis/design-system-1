@@ -313,11 +313,10 @@ const html = `<!doctype html>
     body { margin: 0; font: 400 14px/1.4 'Geist', ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--fg); transition: background .15s ease, color .15s ease; }
     h1, h2, h3 { font-weight: 900; }
     code, kbd, pre, samp, .hex { font-family: 'Geist Mono', ui-monospace, monospace; font-weight: 400; }
-    main { padding: 32px 40px 0; }
+    main { padding: 32px 40px 0 380px; }
     h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 36px 0 12px; }
-    /* Controls: a vertical sheet floating at the right; the page leaves room for it. */
-    .controls { font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; position: fixed; top: 16px; right: 16px; z-index: 3; width: 324px; max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 14px; padding: 18px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); }
-    .logos, main { padding-right: 380px; }
+    /* Controls: a vertical sheet floating at the left; main and .logos leave room for it (380px). */
+    .controls { font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; position: fixed; top: 16px; left: 16px; z-index: 3; width: 324px; max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 14px; padding: 18px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); }
     .controls .checks { display: grid; gap: 10px; }
     .builder-title { margin: 0; font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; font-weight: 900; font-size: 20px; line-height: 1.15; letter-spacing: -.01em; }
     .controls .field { display: grid; gap: 6px; }
@@ -380,7 +379,7 @@ const html = `<!doctype html>
     @media (max-width: 900px) { .m3-split { grid-template-columns: 1fr; } .m3-custom { grid-template-columns: repeat(2, 1fr); } }
     .near-auth { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
     /* Outside #app: render() rewrites that on every toggle, which would restart the animations. */
-    .logos { padding: 8px 40px 64px; }
+    .logos { padding: 8px 40px 64px 380px; }
     .logo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
     .logo { margin: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
     .logo img { display: block; width: 100%; height: auto; aspect-ratio: 1; }
