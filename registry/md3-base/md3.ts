@@ -40,7 +40,7 @@ import type { MtbConfig } from 'material-theme-builder'
  * The name is used verbatim, so `myColor` stays `bg-myColor`.
  */
 export const pmndrsMtb = {
-  /** poimandres lime-green — the primary (also exposed as accent-7 below). */
+  /** poimandres lime — the primary (also exposed as `lime` below). */
   source: process.env.THEME_PRIMARY || '#CAF543',
   // `vibrant` keeps the seed's chroma (neon); `tonalSpot` would clamp it to ~36.
   scheme: (process.env.THEME_SCHEME || 'vibrant') as MtbConfig['scheme'],
@@ -50,35 +50,24 @@ export const pmndrsMtb = {
   /** red. */
   error: process.env.THEME_ERROR || '#FF4980',
   /**
-   * All seven brand hues (lime-green included), exposed as Accent 1..7
-   * (`bg-accent-1` … `bg-accent-7`; the builder kebab-cases the names). Primary
-   * is the lime-green `source` (accent-7 mirrors it for direct use); `red` also
-   * drives the `error` role above.
+   * The seven brand colours, by name: `bg-lime`, `text-on-teal`,
+   * `bg-cyan-container`, `bg-purple-500`, … Lime is also the primary `source`
+   * above; red also drives the `error` role.
    *
-   * `blend: false` keeps each accent true to its hex. `blend: true` would
+   * `blend: false` keeps each colour true to its hex. `blend: true` would
    * harmonize them toward the lime seed — more cohesive, but it pulls the hues
    * off their brand values (measured ΔE 12–27 vs ~0–9 when exact).
    *
    * Secondary and tertiary are intentionally unused — MD3 still generates them
-   * (there's no flag to disable them), but the accents take their place.
+   * (there's no flag to disable them), but these take their place.
    */
   customColors: [
-    { name: 'accent-1', hex: '#D855F9', blend: false }, // purple
-    { name: 'accent-2', hex: '#FF4980', blend: false }, // red
-    { name: 'accent-3', hex: '#FFC043', blend: false }, // orange
-    { name: 'accent-4', hex: '#EBFF0F', blend: false }, // yellow
-    { name: 'accent-5', hex: '#00F7A3', blend: false }, // teal
-    { name: 'accent-6', hex: '#2BDCF6', blend: false }, // blue
-    { name: 'accent-7', hex: '#CAF543', blend: false }, // lime-green
-    /**
-     * The brand's off-white and near-black (`bg-neutral-1`, `bg-neutral-2-900`,
-     * …), snapped onto the neutral ramp the surfaces use: neutral-90 (from
-     * `#EAE5DA`) and neutral-22 (from `#36342F`). The baked ramps of both *are*
-     * that ramp, and the build fails if either hex drifts off it — see
-     * `scripts/palette-overrides.mjs`. `builder()` alone gives them the
-     * primary's chroma instead, and turns both yellow.
-     */
-    { name: 'neutral-1', hex: '#E6E2DD', blend: false }, // off-white, neutral-90
-    { name: 'neutral-2', hex: '#363532', blend: false }, // near-black, neutral-22
+    { name: 'lime', hex: '#CAF543', blend: false },
+    { name: 'teal', hex: '#00F7A3', blend: false },
+    { name: 'cyan', hex: '#2BDCF6', blend: false },
+    { name: 'purple', hex: '#D855F9', blend: false },
+    { name: 'red', hex: '#FF4980', blend: false },
+    { name: 'orange', hex: '#FFC043', blend: false },
+    { name: 'yellow', hex: '#EBFF0F', blend: false },
   ],
 } satisfies MtbConfig

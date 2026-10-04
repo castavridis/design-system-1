@@ -81,7 +81,7 @@ const roles = (name) => [[name, 'primary'], [`on-${name}`, 'on-primary'], [`${na
 
 for (const blend of [false, true]) {
   test(`custom colours (blend ${blend}): the rebuilt ramps are the builder's at standard contrast`, () => {
-    const seed = { ...pmndrsMtb, customColors: pmndrsMtb.customColors.map((c) => ({ ...c, blend: c.name.startsWith('accent') ? blend : c.blend })) }
+    const seed = { ...pmndrsMtb, customColors: pmndrsMtb.customColors.map((c) => ({ ...c, blend })) }
     const { source, ...options } = seed
     const raw = blocks(builder(source, options).toCss())
     const palettes = overridePalettes(seed)

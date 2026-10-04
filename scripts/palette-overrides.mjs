@@ -3,10 +3,8 @@
  *
  * `material-theme-builder` 5.0.0 takes only the *hue* of a neutral seed: the
  * chroma comes from the scheme, and `vibrant` fixes it at 10 for neutral and 12
- * for neutral-variant — a visibly yellow cream and near-black. Custom colours
- * fare worse: every one is given the primary's chroma, so an off-white comes
- * out as a saturated yellow ramp. Neither is configurable, so this redraws
- * those ramps after the fact.
+ * for neutral-variant — a visibly yellow cream and near-black. It is not
+ * configurable, so this redraws those ramps after the fact.
  *
  * Only `--md-ref-palette-*` shades are redrawn. Every role aliases onto a
  * shade (`--md-sys-color-surface: var(--md-ref-palette-neutral-98)`, and the
@@ -44,15 +42,6 @@ import {
 export const NEUTRAL_CHROMA = 2
 export const NEUTRAL_VARIANT_CHROMA = 2.4
 
-/**
- * Custom colours that are shades *of* the neutral ramp: their ramp is the
- * neutral ramp, and their hex must be one of its shades. The brand off-white
- * and near-black were snapped to the nearest one (`#EAE5DA` → neutral-90,
- * `#36342F` → neutral-22, by CIELAB ΔE), so they belong to the palette rather
- * than sitting beside it.
- */
-export const ON_RAMP_COLOURS = ['neutral-1', 'neutral-2']
-
 const schemes = {
   content: SchemeContent,
   expressive: SchemeExpressive,
@@ -65,39 +54,25 @@ const schemes = {
 
 /**
  * The redrawn ramps for a seed, as `{ paletteName: TonalPalette }`, keyed by
- * the CSS palette name (`neutral`, `neutral-variant`, `neutral-1`).
+ * the CSS palette name (`neutral`, `neutral-variant`).
  *
  * Hues come from the same places `builder()` takes them: the neutral seed for
  * `neutral` and the scheme's own neutral-variant palette (derived from
- * `source`) for `neutral-variant`. `ON_RAMP_COLOURS` reuse the neutral ramp.
+ * `source`) for `neutral-variant`.
  */
-export function overridePalettes({ source, scheme = 'tonalSpot', contrast = 0, neutral, customColors = [] }) {
+export function overridePalettes({ source, scheme = 'tonalSpot', contrast = 0, neutral }) {
   const Scheme = schemes[scheme]
   if (!Scheme) throw new Error(`unknown scheme ${scheme}`)
   const base = new Scheme(Hct.fromInt(argbFromHex(source)), false, contrast)
   const neutralHue = neutral ? Hct.fromInt(argbFromHex(neutral)).hue : base.neutralPalette.hue
 
-  const palettes = {
+  return {
     neutral: TonalPalette.fromHueAndChroma(neutralHue, NEUTRAL_CHROMA),
     'neutral-variant': TonalPalette.fromHueAndChroma(base.neutralVariantPalette.hue, NEUTRAL_VARIANT_CHROMA),
   }
-  for (const name of ON_RAMP_COLOURS) {
-    const colour = customColors.find((c) => c.name === name)
-    if (!colour) throw new Error(`${name} is listed in ON_RAMP_COLOURS but the seed has no such custom colour`)
-    // Its hex has to *be* a neutral shade, or `bg-neutral-1` and the ramp it
-    // claims to belong to would disagree. Moving the neutral seed or chroma
-    // moves every shade, so this fails until the hex is re-snapped.
-    const tone = Math.round(Hct.fromInt(argbFromHex(colour.hex)).tone)
-    const shade = hexFromArgb(palettes.neutral.tone(tone))
-    if (shade.toLowerCase() !== colour.hex.toLowerCase()) {
-      throw new Error(`${name} (${colour.hex}) is not a shade of the neutral ramp — neutral-${tone} is ${shade.toUpperCase()}`)
-    }
-    palettes[name] = palettes.neutral
-  }
-  return palettes
 }
 
-/** `--md-ref-palette-neutral-1-40` → `['neutral-1', 40]`. Greedy, so `neutral-10` is `neutral` tone 10. */
+/** `--md-ref-palette-neutral-variant-40` → `['neutral-variant', 40]`. Greedy, so `neutral-10` is `neutral` tone 10. */
 const refPattern = /^--md-ref-palette-(.+)-(\d+)$/
 
 /** The MD3 roles drawn from each structural neutral ramp. */
@@ -167,7 +142,7 @@ export function overrideCssBlock(block, palettes, context) {
   return out
 }
 
-/** `neutral-variant` → `Neutral Variant`, `neutral-1` → `Neutral 1`: the Figma collection's names. */
+/** `neutral-variant` → `Neutral Variant`, `lime` → `Lime`: the Figma collection's names. */
 const figmaName = (name) => name.split('-').map((word) => word[0].toUpperCase() + word.slice(1)).join(' ')
 
 /**
@@ -198,9 +173,6 @@ export function overrideFigmaTokens(tokens, palettes) {
  * This is MD3's own default recipe — `tonalSpot` draws its neutrals from the
  * source hue — at a calm 6 / 8, under `vibrant`'s 10 / 12. Contrast does not
  * move: only chroma changes, and every role keeps its tone.
- *
- * Neutral-1/2 are not part of this. They are the brand off-white and near-black
- * and keep the shipped neutral ramp in every mode.
  */
 export const PRIMARY_MODE_NEUTRAL_CHROMA = 6
 export const PRIMARY_MODE_NEUTRAL_VARIANT_CHROMA = 8
@@ -215,16 +187,15 @@ export function primaryModePalettes({ source }) {
 
 /**
  * Custom colours at medium and high contrast. material-theme-builder 5.0.0
- * gives them no contrast at all: at every level an accent's four roles sit on
+ * gives them no contrast at all: at every level a brand colour's four roles sit on
  * shades 40 / 100 / 90 / 30, while the built-in primary's move (`primary` goes
  * from tone 40 to ~18 at high contrast). This gives each custom colour the
  * tones MD3 gives the primary's four roles at that level — at standard
  * contrast those are the same 40 / 100 / 90 / 30, so it changes nothing there.
  *
- * Each colour is drawn from `palettes[name]` when it is one of ours (Neutral-1/2
- * ride the neutral ramp), otherwise from its ramp rebuilt the way the builder
- * builds it: the hex's hue (harmonized toward the source when `blend`) at the
- * primary palette's chroma.
+ * Each colour is drawn from `palettes[name]` when that has one, otherwise from
+ * its ramp rebuilt the way the builder builds it: the hex's hue (harmonized
+ * toward the source when `blend`) at the primary palette's chroma.
  */
 export function contrastCustomColours(block, seed, palettes, { isDark }) {
   const { source, scheme = 'tonalSpot', contrast = 0, customColors = [] } = seed

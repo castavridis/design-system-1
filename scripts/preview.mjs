@@ -15,7 +15,7 @@
  * keep the two in sync. The real `registry.json` is still produced by
  * `npm run build`; this is a viewer, not a second source of truth.
  *
- * The palette overrides (greyer neutrals, true-chroma Neutral-1/2) are imported
+ * The palette overrides (greyer neutrals) are imported
  * from `palette-overrides.mjs`, not mirrored, so the page shows the baked ramps.
  *
  * The logo SVGs are copied from `assets/` next to the page, like the fonts, so
@@ -27,44 +27,36 @@ import { contrastCustomColours, overrideCssBlock, overridePalettes, primaryModeP
 
 // --- brand seed (mirror of pmndrsMtb in registry/md3-base/md3.ts) -----------
 const BRAND = {
-  source: '#CAF543', // lime-green — primary (also exposed as accent-7 for direct use)
+  source: '#CAF543', // lime — primary (also exposed as `lime` for direct use)
   scheme: 'vibrant', // keeps the seed's chroma (neon); tonalSpot clamps it to ~36
 
   contrast: 0,
   neutral: '#36342F', // warm near-black / off-white — anchors the neutral ramp
   error: '#FF4980', // red
-  // All seven brand hues (lime-green included) exposed as Accent 1..7. Names are
-  // hyphenated because the builder kebab-cases custom names (accent1 → accent-1).
+  // The seven brand colours, by their CSS names (bg-lime, bg-teal, …).
   accents: [
-    ['accent-1', '#D855F9'], // purple
-    ['accent-2', '#FF4980'], // red
-    ['accent-3', '#FFC043'], // orange
-    ['accent-4', '#EBFF0F'], // yellow
-    ['accent-5', '#00F7A3'], // teal
-    ['accent-6', '#2BDCF6'], // blue
-    ['accent-7', '#CAF543'], // lime-green
-  ],
-  // The brand's off-white and near-black, snapped onto the neutral ramp.
-  neutrals: [
-    ['neutral-1', '#E6E2DD'], // off-white, neutral-90
-    ['neutral-2', '#363532'], // near-black, neutral-22
+    ['lime', '#CAF543'],
+    ['teal', '#00F7A3'],
+    ['cyan', '#2BDCF6'],
+    ['purple', '#D855F9'],
+    ['red', '#FF4980'],
+    ['orange', '#FFC043'],
+    ['yellow', '#EBFF0F'],
   ],
 }
 
 // The primaries the page can switch between: each brand hue's pure hex as the
 // seed, lime first since it is the one that ships. Only a preview — the
 // published palette keeps `pmndrsMtb.source`.
-// Human names for the brand hues, in the order the page lists them. The CSS
-// names stay accent-1 … accent-7: renaming those would break installs.
-const COLOR_NAMES = { 'accent-7': 'Lime', 'accent-5': 'Teal', 'accent-6': 'Cyan', 'accent-1': 'Purple', 'accent-2': 'Red', 'accent-3': 'Orange', 'accent-4': 'Yellow' }
+// Display names for the brand colours, in the order the page lists them.
+const COLOR_NAMES = { lime: 'Lime', teal: 'Teal', cyan: 'Cyan', purple: 'Purple', red: 'Red', orange: 'Orange', yellow: 'Yellow' }
 const COLOR_ORDER = Object.keys(COLOR_NAMES)
 const PRIMARIES = COLOR_ORDER.map((key) => [key, COLOR_NAMES[key], Object.fromEntries(BRAND.accents)[key]])
 
-// Neutral-1/2 never blend: they are shades of the neutral ramp either way.
 // `extra` carries the optional secondary / tertiary seeds.
 const seedFor = (blend, source = BRAND.source, extra = {}) => {
-  const { accents, neutrals, ...rest } = BRAND
-  const customColors = [...accents.map(([name, hex]) => ({ name, hex, blend })), ...neutrals.map(([name, hex]) => ({ name, hex, blend: false }))]
+  const { accents, ...rest } = BRAND
+  const customColors = accents.map(([name, hex]) => ({ name, hex, blend }))
   return { ...rest, source, customColors, ...extra }
 }
 
@@ -118,7 +110,7 @@ const deltaE = (a, b) => {
   return Math.hypot(la[0] - lb[0], la[1] - lb[1], la[2] - lb[2])
 }
 
-const customNames = new Set([...BRAND.accents, ...BRAND.neutrals].map(([n]) => n))
+const customNames = new Set(BRAND.accents.map(([n]) => n))
 
 /**
  * The four schemes the page shows for one seed, as flat `{ '--name': value }`
@@ -209,14 +201,7 @@ const model = (blend, source = BRAND.source, contrast = BRAND.contrast) => {
     return { name, label: COLOR_NAMES[name], authored: srcOf[name], light: r.light, dark: r.dark, lightPrimary: r.lightPrimary, darkPrimary: r.darkPrimary, ...familyRoles(name) }
   })
 
-  // Neutral-1/2: the same shape, so they render with the accents' swatch markup.
-  const neutralSrc = Object.fromEntries(BRAND.neutrals)
-  const neutrals = BRAND.neutrals.map(([name]) => {
-    const r = roleOf(`--md-sys-color-${name}`)
-    return { name, label: `Neutral ${name.replace('neutral-', '')}`, authored: neutralSrc[name], light: r.light, dark: r.dark, lightPrimary: r.lightPrimary, darkPrimary: r.darkPrimary, ...familyRoles(name) }
-  })
-
-  // Tonal ramps: primary (lime-green) + the six accent ramps, keeping the
+  // Tonal ramps: primary + the seven brand ramps, keeping the
   // structural neutral/error ramps. Secondary and tertiary are dropped.
   const SKIP = new Set(['secondary', 'tertiary'])
   const tonal = {}
@@ -228,7 +213,7 @@ const model = (blend, source = BRAND.source, contrast = BRAND.contrast) => {
   for (const ramp of Object.values(tonal)) ramp.sort((a, b) => a.tone - b.tone)
 
   // Order: primary first, then the accents, then the structural ramps.
-  const RAMP_ORDER = ['primary', ...COLOR_ORDER, 'neutral-1', 'neutral-2', 'error', 'neutral', 'neutral-variant']
+  const RAMP_ORDER = ['primary', ...COLOR_ORDER, 'error', 'neutral', 'neutral-variant']
   const ordered = {}
   for (const k of RAMP_ORDER) if (tonal[k]) ordered[k] = tonal[k]
   for (const k of Object.keys(tonal)) if (!(k in ordered)) ordered[k] = tonal[k]
@@ -237,13 +222,12 @@ const model = (blend, source = BRAND.source, contrast = BRAND.contrast) => {
   const nearest = [
     { label: 'Primary', authored: source, ...nearestIn(source, ordered.primary) },
     ...COLOR_ORDER.map((name) => ({ name, label: COLOR_NAMES[name], authored: srcOf[name], ...nearestIn(srcOf[name], ordered[name]) })),
-    ...BRAND.neutrals.map(([name], i) => ({ label: `Neutral ${i + 1}`, authored: neutralSrc[name], ...nearestIn(neutralSrc[name], ordered[name]) })),
   ].map((n) => ({ ...n, de: Math.round(n.de) }))
 
   // The two ramps the primary modes redraw, for the ramps section in those views.
   const tonalPrimary = { ...ordered, neutral: rampOf(lightPrimary, 'neutral'), 'neutral-variant': rampOf(lightPrimary, 'neutral-variant') }
 
-  return { groups, accents, neutrals, tonal: ordered, tonalPrimary, nearest }
+  return { groups, accents, tonal: ordered, tonalPrimary, nearest }
 }
 
 // MD3's three contrast levels. Standard is what the registry ships.
@@ -298,7 +282,7 @@ for (const levels of Object.values(ROLE_SEEDS))
 
 // The page's own chrome comes from these roles — the same map the script uses.
 const ROLE_FOR = { '--bg': 'surface', '--fg': 'on-surface', '--panel': 'surface-container-high', '--border': 'outline-variant', '--muted': 'on-surface-variant' }
-const shippedRole = (name) => Object.values(data['accent-7'].standard.exact.groups).flat().find((r) => r.name === name)
+const shippedRole = (name) => Object.values(data.lime.standard.exact.groups).flat().find((r) => r.name === name)
 const chromeCss = (mode) => Object.entries(ROLE_FOR).map(([v, role]) => `${v}: ${shippedRole(role)[mode]};`).join(' ')
 
 // The four SVGs the `logo` registry item installs, in the order it lists them.
@@ -416,7 +400,7 @@ const html = `<!doctype html>
     <section aria-labelledby="h-colors">
       <h2 id="h-colors">Colors</h2>
       <div class="field"><span class="label" id="l-primary">Primary</span>
-        <div class="swatches" role="group" aria-labelledby="l-primary">${PRIMARIES.map(([key, name, hex]) => `<button class="swatch" id="p-${key}" style="background:${hex}" title="${name} ${hex}" aria-label="${name}" aria-pressed="${key === 'accent-7'}"></button>`).join('')}</div>
+        <div class="swatches" role="group" aria-labelledby="l-primary">${PRIMARIES.map(([key, name, hex]) => `<button class="swatch" id="p-${key}" style="background:${hex}" title="${name} ${hex}" aria-label="${name}" aria-pressed="${key === 'lime'}"></button>`).join('')}</div>
       </div>
       ${['secondary', 'tertiary'].map((which) => `<div class="field"><span class="label" id="l-${which}">${which[0].toUpperCase() + which.slice(1)}</span>
         <div class="swatches" role="group" aria-labelledby="l-${which}"><button class="auto" id="${which[0]}-auto" title="Derived from the primary" aria-pressed="true">Auto</button>${PRIMARIES.map(([key, name, hex]) => `<button class="swatch" id="${which[0]}-${key}" style="background:${hex}" title="${name} ${hex}" aria-label="${name}" aria-pressed="false"></button>`).join('')}</div>
@@ -458,7 +442,7 @@ const html = `<!doctype html>
     // (in update) and are what the rendering reads.
     // Mode opens on the viewer's system setting.
     const startMode = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    const state = { primary: 'accent-7', secondary: 'auto', tertiary: 'auto', unique: true, mode: startMode, tint: false, match: true, contrast: 'standard', view: startMode, fidelity: 'exact' }
+    const state = { primary: 'lime', secondary: 'auto', tertiary: 'auto', unique: true, mode: startMode, tint: false, match: true, contrast: 'standard', view: startMode, fidelity: 'exact' }
     const PRIMARIES = ${JSON.stringify(PRIMARIES)}
     const ROLE_SEEDS = JSON.parse(document.getElementById('role-seeds').textContent)
     const COLOR_NAMES = ${JSON.stringify(COLOR_NAMES)}
@@ -497,7 +481,7 @@ const html = `<!doctype html>
       // The primary's hue and any picked secondary / tertiary hue show as those
       // roles, so none of them repeats as a custom-colour row.
       const pickedNow = new Set([state.primary, ...['secondary', 'tertiary'].filter((w) => state[w] !== 'auto').map((w) => state[w])])
-      const customs = [...d.accents.filter((a) => !pickedNow.has(a.name)), ...d.neutrals]
+      const customs = d.accents.filter((a) => !pickedNow.has(a.name))
       for (const c of customs) Object.assign(byName, { [c.name]: c, ['on-' + c.name]: c.on, [c.name + '-container']: c.container, ['on-' + c.name + '-container']: c.onContainer })
 
       const SCHEME_TITLES = { light: 'Light Scheme', dark: 'Dark Scheme', lightPrimary: 'Light (Primary) Scheme', darkPrimary: 'Dark (Primary) Scheme' }
@@ -527,7 +511,7 @@ const html = `<!doctype html>
         return h + '</div>'
       }
       html += '<h2>Scheme</h2>'
-      html += '<p class="legend">Laid out like Material Theme Builder. Each brand color (and Neutral 1/2) is a custom-color row: Purple Container is MTB\u2019s Custom Color 1 Container. Hues picked as secondary or tertiary show in those columns instead.</p>'
+      html += '<p class="legend">Laid out like Material Theme Builder. Each brand color is a custom-color row: Purple Container is MTB\u2019s Custom Color 1 Container. Hues picked as secondary or tertiary show in those columns instead.</p>'
       html += '<div class="schemes">' + VIEWS[state.view].map(schemeCard).join('') + '</div>'
 
       html += '<h2>Brand colors → nearest ramp step</h2>'
@@ -536,7 +520,7 @@ const html = `<!doctype html>
       const seeded = ['secondary', 'tertiary'].filter((which) => state[which] !== 'auto')
       // The primary's hue, and a brand hue picked as secondary or tertiary, show
       // as that role instead, so they drop out of the accents everywhere they
-      // are listed: seven brand colours and two neutrals, each once.
+      // are listed: the seven brand colours, each once.
       const picked = new Set([state.primary, ...seeded.map((which) => state[which])])
       const nearest = d.nearest.filter((n) => !picked.has(n.name))
       nearest.splice(1, 0, ...seeded.map((which) => ({ label: roleTitle(which), ...familyOf(which).nearest })))
@@ -549,14 +533,14 @@ const html = `<!doctype html>
       html += '</div>'
 
       html += '<h2>Tonal reference ramps (--md-ref-palette-*)</h2>'
-      html += '<p class="legend">Scheme-independent tones the roles alias onto — identical in light and dark.' + (isPrimaryView() ? ' Primary views: Neutral and Neutral-Variant are tinted by the primary; Neutral-1/2 keep the brand ramp.' : '') + '</p>'
+      html += '<p class="legend">Scheme-independent tones the roles alias onto — identical in light and dark.' + (isPrimaryView() ? ' Tinted: Neutral and Neutral-Variant take the primary\u2019s hue.' : '') + '</p>'
       const ramps = {}
       for (const [hue, ramp] of Object.entries(isPrimaryView() ? d.tonalPrimary : d.tonal)) {
         ramps[hue] = ramp
         if (hue === 'primary') for (const which of ['secondary', 'tertiary']) ramps[which] = familyOf(which).ramp
       }
       for (const [hue, ramp] of Object.entries(ramps).filter(([hue]) => !picked.has(hue))) {
-        const label = COLOR_NAMES[hue] ?? (/^neutral-\\d$/.test(hue) ? 'Neutral ' + hue.slice(8) : hue)
+        const label = COLOR_NAMES[hue] ?? hue
         html += '<div class="ramp"><div class="ramp-name">' + label + '</div><div class="tones">'
         for (const t of ramp) {
           html += '<div class="tone" title="' + hue + '-' + t.tone + ': ' + t.hex + '" style="background:' + t.hex + ';color:' + ink(t.hex) + '">' + t.tone + '</div>'
@@ -659,4 +643,4 @@ mkdirSync(new URL('./logos/', out), { recursive: true })
 for (const [file] of LOGOS) copyFileSync(new URL(`../assets/${file}`, import.meta.url), new URL(`./logos/${file}`, out))
 writeFileSync(out, html)
 const n = BRAND.accents.length
-console.log(`✔ wrote demo/palette.html (${PRIMARIES.length} primaries, ${n} accents, ${BRAND.neutrals.length} neutrals, harmonized + exact, ${LOGOS.length} logos)`)
+console.log(`✔ wrote demo/palette.html (${PRIMARIES.length} primaries, ${n} brand colours, harmonized + exact, ${LOGOS.length} logos)`)

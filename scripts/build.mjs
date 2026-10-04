@@ -184,7 +184,7 @@ const theme = builder(source, options)
 
 /**
  * The one place the bake departs from `builder()`: the neutral ramps at a lower
- * chroma, and Neutral-1/2 at their own. Applied to the CSS and the Figma tokens
+ * chroma. Applied to the CSS and the Figma tokens
  * alike, so the two still agree with each other — what they no longer match is
  * a runtime `builder(pmndrsMtb)`. See `palette-overrides.mjs` for why, and for
  * what retires it.
