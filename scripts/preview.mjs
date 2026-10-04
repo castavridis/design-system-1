@@ -316,7 +316,7 @@ const html = `<!doctype html>
     header { padding: 32px 40px 8px; }
     header h1 { margin: 0 0 4px; font-size: 20px; }
     header p { margin: 0; color: var(--muted); }
-    main { padding: 8px 40px 64px; }
+    main { padding: 8px 40px 0; }
     h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 36px 0 12px; }
     /* Controls: a vertical sheet floating at the right; the page leaves room for it. */
     .controls { font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; position: fixed; top: 16px; right: 16px; z-index: 3; width: 324px; max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 14px; padding: 18px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); }
@@ -379,7 +379,7 @@ const html = `<!doctype html>
     @media (max-width: 900px) { .m3-split { grid-template-columns: 1fr; } .m3-custom { grid-template-columns: repeat(2, 1fr); } }
     .near-auth { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
     /* Outside #app: render() rewrites that on every toggle, which would restart the animations. */
-    .logos { padding: 8px 40px 0; }
+    .logos { padding: 8px 40px 64px; }
     .logo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
     .logo { margin: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
     .logo img { display: block; width: 100%; height: auto; aspect-ratio: 1; }
@@ -417,6 +417,7 @@ const html = `<!doctype html>
     </div>
     <p class="summary" id="summary" aria-live="polite"></p>
   </aside>
+  <main id="app"></main>
   <section class="logos">
     <h2>Logo (registry item <code>logo</code>)</h2>
     <div class="logo-grid">
@@ -424,7 +425,6 @@ const html = `<!doctype html>
     </div>
     <p class="legend logo-note"><span>The animation is CSS inside each SVG, so a plain &lt;img&gt; plays it. Under reduced motion the one-shot holds still and the loader only fades.</span></p>
   </section>
-  <main id="app"></main>
   <script id="data" type="application/json">${JSON.stringify(data)}</script>
   <script id="role-seeds" type="application/json">${JSON.stringify(ROLE_SEEDS)}</script>
   <script>
@@ -511,23 +511,11 @@ const html = `<!doctype html>
       html += '<p class="legend">Laid out like Material Theme Builder. Each brand color is a custom-color row: Purple Container is MTB\u2019s Custom Color 1 Container. Hues picked as secondary or tertiary show in those columns instead.</p>'
       html += '<div class="schemes">' + VIEWS[state.view].map(schemeCard).join('') + '</div>'
 
-      html += '<h2>Brand colors → nearest ramp step</h2>'
-      html += '<p class="legend">For each brand colour, the closest step in its own ramp (by CIELAB ΔE). The big number is the level (tone); the chip is the authored value.</p>'
-      html += '<div class="nearest">'
       const seeded = ['secondary', 'tertiary'].filter((which) => state[which] !== 'auto')
       // The primary's hue, and a brand hue picked as secondary or tertiary, show
       // as that role instead, so they drop out of the accents everywhere they
       // are listed: the seven brand colours, each once.
       const picked = new Set([state.primary, ...seeded.map((which) => state[which])])
-      const nearest = d.nearest.filter((n) => !picked.has(n.name))
-      nearest.splice(1, 0, ...seeded.map((which) => ({ label: roleTitle(which), ...familyOf(which).nearest })))
-      nearest[0] = { ...nearest[0], label: roleTitle('primary') }
-      for (const n of nearest) {
-        html += '<div class="near"><div class="near-sw" style="background:' + n.hex + ';color:' + ink(n.hex) + '">' + n.tone + '</div>' +
-          '<div class="near-meta"><span class="lbl">' + n.label + '</span><span class="hex">' + n.hex + '</span>' +
-          '<span class="near-auth"><span class="chip" style="background:' + n.authored + '"></span>' + n.authored + ' · ΔE ' + n.de + '</span></div></div>'
-      }
-      html += '</div>'
 
       html += '<h2>Tonal reference ramps (--md-ref-palette-*)</h2>'
       html += '<p class="legend">Scheme-independent tones the roles alias onto — identical in light and dark. Neutral is grey; Neutral-Variant carries a hint of the primary.' + (isPrimaryView() ? ' Tint neutrals swaps the pair: Neutral takes the primary\u2019s hue and Neutral-Variant goes grey.' : '') + '</p>'
@@ -544,6 +532,19 @@ const html = `<!doctype html>
         }
         html += '</div></div>'
       }
+
+      html += '<h2>Brand colors → nearest ramp step</h2>'
+      html += '<p class="legend">For each brand colour, the closest step in its own ramp (by CIELAB ΔE). The big number is the level (tone); the chip is the authored value.</p>'
+      html += '<div class="nearest">'
+      const nearest = d.nearest.filter((n) => !picked.has(n.name))
+      nearest.splice(1, 0, ...seeded.map((which) => ({ label: roleTitle(which), ...familyOf(which).nearest })))
+      nearest[0] = { ...nearest[0], label: roleTitle('primary') }
+      for (const n of nearest) {
+        html += '<div class="near"><div class="near-sw" style="background:' + n.hex + ';color:' + ink(n.hex) + '">' + n.tone + '</div>' +
+          '<div class="near-meta"><span class="lbl">' + n.label + '</span><span class="hex">' + n.hex + '</span>' +
+          '<span class="near-auth"><span class="chip" style="background:' + n.authored + '"></span>' + n.authored + ' · ΔE ' + n.de + '</span></div></div>'
+      }
+      html += '</div>'
 
       document.getElementById('app').innerHTML = html
     }
