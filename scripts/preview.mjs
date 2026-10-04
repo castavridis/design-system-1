@@ -349,15 +349,19 @@ const html = `<!doctype html>
     }
     .lbl { font-weight: 600; font-size: 12px; word-break: break-word; }
     .hex { font-size: 11px; font-variant-numeric: tabular-nums; opacity: .85; }
-    .chip { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); flex: none; }
     .ramp { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
     .ramp-name { width: 120px; text-align: right; font-size: 12px; text-transform: capitalize; color: var(--fg); flex: none; }
     .tones { display: flex; flex: 1; border-radius: 6px; overflow: hidden; }
     .tone { flex: 1; min-width: 0; padding: 10px 2px; text-align: center; font-size: 10px; font-variant-numeric: tabular-nums; }
     .legend { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
     .nearest { display: flex; flex-wrap: wrap; gap: 12px; }
-    .near { width: 132px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-    .near-sw { height: 60px; display: flex; align-items: flex-end; justify-content: flex-end; padding: 6px 9px; font-weight: 900; font-size: 18px; font-variant-numeric: tabular-nums; }
+    .near { width: 168px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    /* Brand and generated colours touching, so the eye compares them directly. */
+    .near-sw { height: 72px; display: grid; grid-template-columns: 1fr 1fr; }
+    .near-half { display: flex; flex-direction: column; justify-content: space-between; padding: 6px 8px; min-width: 0; }
+    .near-half .cap { font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; opacity: .85; }
+    .near-half .near-tone { font-weight: 900; font-size: 18px; font-variant-numeric: tabular-nums; align-self: flex-end; }
+    .near-hexes { display: grid; grid-template-columns: 1fr 1fr; font-size: 11px; color: var(--muted); }
     .near-meta { padding: 7px 9px; display: flex; flex-direction: column; gap: 3px; background: var(--panel); }
     /* Scheme: Material Theme Builder's layout, one card per scheme in the view. */
     .schemes { display: grid; gap: 16px; }
@@ -534,15 +538,19 @@ const html = `<!doctype html>
       }
 
       html += '<h2>Brand colors → nearest ramp step</h2>'
-      html += '<p class="legend">For each brand colour, the closest step in its own ramp (by CIELAB ΔE). The big number is the level (tone); the chip is the authored value.</p>'
+      html += '<p class="legend">For each brand colour, the closest step in its own ramp (by CIELAB ΔE). Each swatch puts the brand hex (left) against the generated MD3 step (right); the big number is that step\u2019s tone.</p>'
       html += '<div class="nearest">'
       const nearest = d.nearest.filter((n) => !picked.has(n.name))
       nearest.splice(1, 0, ...seeded.map((which) => ({ label: roleTitle(which), ...familyOf(which).nearest })))
       nearest[0] = { ...nearest[0], label: roleTitle('primary') }
       for (const n of nearest) {
-        html += '<div class="near"><div class="near-sw" style="background:' + n.hex + ';color:' + ink(n.hex) + '">' + n.tone + '</div>' +
-          '<div class="near-meta"><span class="lbl">' + n.label + '</span><span class="hex">' + n.hex + '</span>' +
-          '<span class="near-auth"><span class="chip" style="background:' + n.authored + '"></span>' + n.authored + ' · ΔE ' + n.de + '</span></div></div>'
+        // Left: the brand hex as authored. Right: the closest step MD3 generated.
+        html += '<div class="near"><div class="near-sw">' +
+          '<div class="near-half" style="background:' + n.authored + ';color:' + ink(n.authored) + '"><span class="cap">Brand</span></div>' +
+          '<div class="near-half" style="background:' + n.hex + ';color:' + ink(n.hex) + '"><span class="cap">M3</span><span class="near-tone">' + n.tone + '</span></div></div>' +
+          '<div class="near-meta"><span class="lbl">' + n.label + '</span>' +
+          '<span class="near-hexes hex"><span>' + n.authored.toLowerCase() + '</span><span>' + n.hex + '</span></span>' +
+          '<span class="near-auth">ΔE ' + n.de + ' · tone ' + n.tone + '</span></div></div>'
       }
       html += '</div>'
 
