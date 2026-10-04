@@ -531,7 +531,7 @@ const html = `<!doctype html>
         html += '</div></div>'
       }
 
-      html += '<h2>Brand colors → nearest ramp step</h2>'
+      html += '<h2>Poimandres brand colors → nearest MD3 ramp step</h2>'
       html += '<p class="legend">For each brand colour, the closest step in its own ramp (by CIELAB ΔE). Each swatch puts the brand hex (left) against the generated MD3 step (right); the big number is that step\u2019s tone.</p>'
       html += '<div class="nearest">'
       const nearest = d.nearest.filter((n) => !picked.has(n.name))
