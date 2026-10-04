@@ -406,7 +406,7 @@ const html = `<!doctype html>
         <div class="swatches" role="group" aria-labelledby="l-${which}"><button class="auto" id="${which[0]}-auto" title="Derived from the primary" aria-pressed="true">Auto</button>${PRIMARIES.map(([key, name, hex]) => `<button class="swatch" id="${which[0]}-${key}" style="background:${hex}" title="${name} ${hex}" aria-label="${name}" aria-pressed="false"></button>`).join('')}</div>
       </div>`).join('\n      ')}
       <label class="check" title="Keep primary, secondary and tertiary on different brand hues"><input type="checkbox" id="sw-unique" checked /> Use unique colors</label>
-      <label class="check" title="Checked: brand colors keep their exact hex. Unchecked: harmonized toward the primary."><input type="checkbox" id="sw-match" checked /> Use exact colors</label>
+      <label class="check" title="Checked: brand colors are harmonized toward the primary. Unchecked: they keep their exact hex."><input type="checkbox" id="sw-harmonize" /> Use harmonized colors</label>
     </section>
     <section aria-labelledby="h-display">
       <h2 id="h-display">Display</h2>
@@ -484,7 +484,7 @@ const html = `<!doctype html>
       const customs = d.accents.filter((a) => !pickedNow.has(a.name))
       for (const c of customs) Object.assign(byName, { [c.name]: c, ['on-' + c.name]: c.on, [c.name + '-container']: c.container, ['on-' + c.name + '-container']: c.onContainer })
 
-      const SCHEME_TITLES = { light: 'Light Scheme', dark: 'Dark Scheme', lightPrimary: 'Light (Primary) Scheme', darkPrimary: 'Dark (Primary) Scheme' }
+      const SCHEME_TITLES = { light: 'Light Scheme', dark: 'Dark Scheme', lightPrimary: 'Light Scheme', darkPrimary: 'Dark Scheme' }
       const schemeCard = (scheme) => {
         const v = (name) => byName[name][scheme]
         // A cell is a role's colour with another role's colour as its text, the way
@@ -587,7 +587,9 @@ const html = `<!doctype html>
       contrast: { standard: 'c-standard', medium: 'c-medium', high: 'c-high' },
       mode: { light: 'm-light', dark: 'm-dark' },
     }
-    const switches = { unique: 'sw-unique', tint: 'sw-tint', match: 'sw-match' }
+    // Checkbox → state. "Use harmonized colors" is the inverse of colour match:
+    // checked means match = false.
+    const switches = { unique: ['sw-unique', false], tint: ['sw-tint', false], match: ['sw-harmonize', true] }
     let lastMove = ''
     function update() {
       state.view = state.tint ? state.mode + '-primary' : state.mode
@@ -599,7 +601,7 @@ const html = `<!doctype html>
         const taken = takenFor(which)
         for (const [key] of PRIMARIES) document.getElementById(which[0] + '-' + key).disabled = taken.includes(key)
       }
-      for (const [key, id] of Object.entries(switches)) document.getElementById(id).checked = state[key]
+      for (const [key, [id, inverse]] of Object.entries(switches)) document.getElementById(id).checked = inverse ? !state[key] : state[key]
       for (const which of ['primary', 'secondary', 'tertiary']) document.getElementById('l-' + which).textContent = roleTitle(which)
       // One plain sentence for what is on screen.
       const [, name, hex] = PRIMARIES.find(([key]) => key === state.primary)
@@ -615,7 +617,7 @@ const html = `<!doctype html>
     for (const [g, opts] of Object.entries(groups)) {
       for (const [val, id] of Object.entries(opts)) document.getElementById(id).onclick = () => { state[g] = val; lastMove = enforceUnique(); update() }
     }
-    for (const [key, id] of Object.entries(switches)) document.getElementById(id).onchange = (event) => { state[key] = event.target.checked; lastMove = enforceUnique(); update() }
+    for (const [key, [id, inverse]] of Object.entries(switches)) document.getElementById(id).onchange = (event) => { state[key] = inverse ? !event.target.checked : event.target.checked; lastMove = enforceUnique(); update() }
     update()
 
     // A fresh query string loads the SVG as a new document, so its animation starts over.
