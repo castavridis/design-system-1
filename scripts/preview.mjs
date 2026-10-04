@@ -411,9 +411,9 @@ const html = `<!doctype html>
       <div class="swatches" role="group" aria-labelledby="l-${which}">${PRIMARIES.map(([key, name, hex]) => `<button class="swatch" id="${which[0]}-${key}" style="background:${hex}" title="${name} ${hex}" aria-label="${name}" aria-pressed="false"></button>`).join('')}<button class="auto" id="${which[0]}-auto" title="Derived from the primary" aria-pressed="true">Auto</button></div>
     </div>`).join('\n    ')}
     <div class="checks">
-      <label class="check" title="Keep primary, secondary and tertiary on different brand hues"><input type="checkbox" id="sw-unique" checked /> Use unique colors</label>
-      <label class="check" title="Checked: brand colors are harmonized toward the primary. Unchecked: they keep their exact hex."><input type="checkbox" id="sw-harmonize" /> Use harmonized colors</label>
+      <label class="check" title="Keep primary, secondary and tertiary on different brand hues"><input type="checkbox" id="sw-unique" checked /> Unique colors</label>
       <label class="check" title="Swap the neutrals: surfaces and text take the primary's hue, outlines and secondary text go grey"><input type="checkbox" id="sw-tint" /> Tint neutrals</label>
+      <label class="check" title="Checked: brand colors are harmonized toward the primary. Unchecked: they keep their exact hex."><input type="checkbox" id="sw-harmonize" /> Harmonize colors</label>
     </div>
     <p class="summary" id="summary" aria-live="polite"></p>
   </aside>
@@ -585,7 +585,7 @@ const html = `<!doctype html>
       contrast: { standard: 'c-standard', medium: 'c-medium', high: 'c-high' },
       mode: { light: 'm-light', dark: 'm-dark' },
     }
-    // Checkbox → state. "Use harmonized colors" is the inverse of colour match:
+    // Checkbox → state. "Harmonize colors" is the inverse of colour match:
     // checked means match = false.
     const switches = { unique: ['sw-unique', false], tint: ['sw-tint', false], match: ['sw-harmonize', true] }
     let lastMove = ''
