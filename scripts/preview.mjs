@@ -327,7 +327,7 @@ const html = `<!doctype html>
     @media (prefers-color-scheme: dark) { :root { ${chromeCss('dark')} } }
     body { margin: 0; font: 400 14px/1.4 'Geist', ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--fg); transition: background .15s ease, color .15s ease; }
     h1, h2, h3 { font-weight: 900; }
-    code, kbd, pre, samp, .hex, .ref { font-family: 'Geist Mono', ui-monospace, monospace; font-weight: 400; }
+    code, kbd, pre, samp, .hex { font-family: 'Geist Mono', ui-monospace, monospace; font-weight: 400; }
     header { padding: 32px 40px 8px; }
     header h1 { margin: 0 0 4px; font-size: 20px; }
     header p { margin: 0; color: var(--muted); }
@@ -363,18 +363,8 @@ const html = `<!doctype html>
       header, .logos, main { padding-right: 16px; }
       header, main, .logos { padding-left: 16px; }
     }
-    .group { margin-bottom: 24px; }
-    .group h3 { font-size: 13px; text-transform: capitalize; margin: 0 0 8px; color: var(--fg); }
-    .roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
-    .role { border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
-    .pair { display: grid; grid-template-columns: 1fr 72px; }
-    .cell { padding: 12px 10px; min-height: 56px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
     .lbl { font-weight: 600; font-size: 12px; word-break: break-word; }
     .hex { font-size: 11px; font-variant-numeric: tabular-nums; opacity: .85; }
-    .ref { padding: 5px 10px; font-size: 10px; color: var(--muted); background: var(--panel); font-variant-numeric: tabular-nums; }
-    .brand { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
-    .brand .role { border-color: var(--border); }
-    .authored { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--panel); font-size: 11px; color: var(--muted); }
     .chip { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); flex: none; }
     .ramp { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
     .ramp-name { width: 120px; text-align: right; font-size: 12px; text-transform: capitalize; color: var(--fg); flex: none; }
@@ -432,17 +422,17 @@ const html = `<!doctype html>
         <div class="swatches" role="group" aria-labelledby="l-${which}"><button class="auto" id="${which[0]}-auto" title="Derived from the primary" aria-pressed="true">Auto</button>${PRIMARIES.map(([key, name, hex]) => `<button class="swatch" id="${which[0]}-${key}" style="background:${hex}" title="${name} ${hex}" aria-label="${name}" aria-pressed="false"></button>`).join('')}</div>
       </div>`).join('\n      ')}
       <label class="check" title="Keep primary, secondary and tertiary on different brand hues"><input type="checkbox" id="sw-unique" checked /> Use unique colors</label>
+      <label class="check" title="Checked: brand colors keep their exact hex. Unchecked: harmonized toward the primary."><input type="checkbox" id="sw-match" checked /> Use exact colors</label>
     </section>
     <section aria-labelledby="h-display">
       <h2 id="h-display">Display</h2>
-      <div class="field"><span class="label" id="l-mode">Mode</span>
-        <div class="seg" role="group" aria-labelledby="l-mode"><button id="m-light" aria-pressed="false">Light</button><button id="m-dark" aria-pressed="false">Dark</button><button id="m-both" aria-pressed="true">Both</button></div>
-      </div>
       <div class="field"><span class="label" id="l-contrast">Contrast</span>
         <div class="seg" role="group" aria-labelledby="l-contrast">${CONTRASTS.map(([level, , label]) => `<button id="c-${level}" aria-pressed="${level === 'standard'}">${label}</button>`).join('')}</div>
       </div>
+      <div class="field"><span class="label" id="l-mode">Mode</span>
+        <div class="seg" role="group" aria-labelledby="l-mode"><button id="m-light" aria-pressed="false">Light</button><button id="m-dark" aria-pressed="false">Dark</button></div>
+      </div>
       <label class="check" title="Surfaces, text and outlines take a hint of the primary"><input type="checkbox" id="sw-tint" /> Tint neutrals</label>
-      <label class="check" title="Checked: accents keep their exact brand hex. Unchecked: harmonized toward the primary."><input type="checkbox" id="sw-match" checked /> Color match</label>
     </section>
     <p class="summary" id="summary" aria-live="polite"></p>
   </aside>
@@ -466,7 +456,9 @@ const html = `<!doctype html>
     // brand hue's key; with Unique on, no two of the three share a brand hue.
     // The controls set mode, tint and match; view and fidelity follow from them
     // (in update) and are what the rendering reads.
-    const state = { primary: 'accent-7', secondary: 'auto', tertiary: 'auto', unique: true, mode: 'both', tint: false, match: true, contrast: 'standard', view: 'both', fidelity: 'exact' }
+    // Mode opens on the viewer's system setting.
+    const startMode = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    const state = { primary: 'accent-7', secondary: 'auto', tertiary: 'auto', unique: true, mode: startMode, tint: false, match: true, contrast: 'standard', view: startMode, fidelity: 'exact' }
     const PRIMARIES = ${JSON.stringify(PRIMARIES)}
     const ROLE_SEEDS = JSON.parse(document.getElementById('role-seeds').textContent)
     const COLOR_NAMES = ${JSON.stringify(COLOR_NAMES)}
@@ -482,29 +474,16 @@ const html = `<!doctype html>
       const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16))
       return 0.2126 * r + 0.7152 * g + 0.0722 * b > 140 ? '#111' : '#fff'
     }
-    const cell = (hex, label, sub) =>
-      '<div class="cell" style="background:' + hex + ';color:' + ink(hex) + '">' +
-      '<span class="lbl">' + label + '</span><span class="hex">' + sub + '</span></div>'
-
     const find = (d, name) => { for (const rs of Object.values(d.groups)) { const x = rs.find((r) => r.name === name); if (x) return x } }
 
-    // Each view names the scheme(s) it shows. A "both" view shows the light/dark
-    // pair; a single-mode view fills one cell with that mode's value.
+    // The scheme each view shows: light or dark, with or without tinted neutrals.
     const VIEWS = {
-      both: ['light', 'dark'],
       light: ['light'],
       dark: ['dark'],
-      'both-primary': ['lightPrimary', 'darkPrimary'],
       'light-primary': ['lightPrimary'],
       'dark-primary': ['darkPrimary'],
     }
     const isPrimaryView = () => state.view.endsWith('primary')
-    const swatches = (o) => {
-      const lab = o.label || o.name
-      const [a, b] = VIEWS[state.view]
-      return cell(o[a], lab, o[a]) + (b ? cell(o[b], 'dark', o[b]) : '')
-    }
-    const pairStyle = () => (VIEWS[state.view].length === 2 ? '' : 'grid-template-columns:1fr')
 
     function render() {
       const d = DATA[state.primary][state.contrast][state.fidelity]
@@ -515,7 +494,9 @@ const html = `<!doctype html>
       const byName = {}
       for (const roles of Object.values(d.groups)) for (const r of roles) byName[r.name] = r
       for (const which of ['secondary', 'tertiary']) for (const r of familyOf(which).roles) byName[r.name] = r
-      const pickedNow = new Set(['secondary', 'tertiary'].filter((w) => state[w] !== 'auto').map((w) => state[w]))
+      // The primary's hue and any picked secondary / tertiary hue show as those
+      // roles, so none of them repeats as a custom-colour row.
+      const pickedNow = new Set([state.primary, ...['secondary', 'tertiary'].filter((w) => state[w] !== 'auto').map((w) => state[w])])
       const customs = [...d.accents.filter((a) => !pickedNow.has(a.name)), ...d.neutrals]
       for (const c of customs) Object.assign(byName, { [c.name]: c, ['on-' + c.name]: c.on, [c.name + '-container']: c.container, ['on-' + c.name + '-container']: c.onContainer })
 
@@ -553,9 +534,10 @@ const html = `<!doctype html>
       html += '<p class="legend">For each brand colour, the closest step in its own ramp (by CIELAB ΔE). The big number is the level (tone); the chip is the authored value.</p>'
       html += '<div class="nearest">'
       const seeded = ['secondary', 'tertiary'].filter((which) => state[which] !== 'auto')
-      // A brand hue picked as secondary or tertiary shows in that group instead,
-      // so it drops out of the accents everywhere they are listed.
-      const picked = new Set(seeded.map((which) => state[which]))
+      // The primary's hue, and a brand hue picked as secondary or tertiary, show
+      // as that role instead, so they drop out of the accents everywhere they
+      // are listed: seven brand colours and two neutrals, each once.
+      const picked = new Set([state.primary, ...seeded.map((which) => state[which])])
       const nearest = d.nearest.filter((n) => !picked.has(n.name))
       nearest.splice(1, 0, ...seeded.map((which) => ({ label: roleTitle(which), ...familyOf(which).nearest })))
       nearest[0] = { ...nearest[0], label: roleTitle('primary') }
@@ -563,25 +545,6 @@ const html = `<!doctype html>
         html += '<div class="near"><div class="near-sw" style="background:' + n.hex + ';color:' + ink(n.hex) + '">' + n.tone + '</div>' +
           '<div class="near-meta"><span class="lbl">' + n.label + '</span><span class="hex">' + n.hex + '</span>' +
           '<span class="near-auth"><span class="chip" style="background:' + n.authored + '"></span>' + n.authored + ' · ΔE ' + n.de + '</span></div></div>'
-      }
-      html += '</div>'
-
-      html += '<h2>Accent colors</h2>'
-      html += '<p class="legend">The brand hues as custom colors (<code>bg-accent-1</code> … <code>bg-accent-7</code>; Lime is <code>accent-7</code>). The chip is the authored value; swatches are the MD3 role it generates — Color match keeps it on the authored hex; off, it is harmonized toward the primary.' +
-        (picked.size ? ' Hues picked as secondary or tertiary are left out here; they show in those groups.' : '') + '</p>'
-      html += '<div class="brand">'
-      for (const b of d.accents.filter((a) => !picked.has(a.name))) {
-        html += '<div class="role"><div class="pair" style="' + pairStyle() + '">' + swatches(b) +
-          '</div><div class="authored"><span class="chip" style="background:' + b.authored + '"></span>authored ' + b.authored + '</div></div>'
-      }
-      html += '</div>'
-
-      html += '<h2>Neutral colors</h2>'
-      html += '<p class="legend">The brand off-white and near-black as custom colours (<code>bg-neutral-1</code>, <code>bg-neutral-2-900</code> …). Both are shades of the neutral ramp the surfaces use, neutral-90 and neutral-22, and that ramp is their ramp; the swatches are the tone-40 role.</p>'
-      html += '<div class="brand">'
-      for (const b of d.neutrals) {
-        html += '<div class="role"><div class="pair" style="' + pairStyle() + '">' + swatches(b) +
-          '</div><div class="authored"><span class="chip" style="background:' + b.authored + '"></span>authored ' + b.authored + '</div></div>'
       }
       html += '</div>'
 
@@ -605,19 +568,13 @@ const html = `<!doctype html>
     }
 
     // Page chrome follows the selected mode's own surface roles so the preview
-    // reads as a real light/dark theme. A "both" view shows two schemes, so its
-    // chrome takes whichever of the pair matches the viewer's system setting:
-    // Both looks like Light or Dark, Both (Primary) like Light or Dark (Primary).
+    // reads as a real light/dark theme.
     const ROLE_FOR = ${JSON.stringify(ROLE_FOR)}
-    const prefersDark = matchMedia('(prefers-color-scheme: dark)')
     function theme() {
-      const root = document.documentElement.style
-      const pair = VIEWS[state.view]
-      const scheme = pair.length === 2 ? pair[prefersDark.matches ? 1 : 0] : pair[0]
+      const scheme = VIEWS[state.view][0]
       const d = DATA[state.primary][state.contrast][state.fidelity]
-      for (const [v, role] of Object.entries(ROLE_FOR)) { const r = find(d, role); if (r) root.setProperty(v, r[scheme]) }
+      for (const [v, role] of Object.entries(ROLE_FOR)) { const r = find(d, role); if (r) document.documentElement.style.setProperty(v, r[scheme]) }
     }
-    prefersDark.addEventListener('change', theme)
 
     // With Unique on, a seeded secondary or tertiary may not share the primary's
     // hue or each other's. Their taken hues are disabled; changing the primary
@@ -644,7 +601,7 @@ const html = `<!doctype html>
       secondary: Object.fromEntries([['auto', 's-auto'], ...PRIMARIES.map(([key]) => [key, 's-' + key])]),
       tertiary: Object.fromEntries([['auto', 't-auto'], ...PRIMARIES.map(([key]) => [key, 't-' + key])]),
       contrast: { standard: 'c-standard', medium: 'c-medium', high: 'c-high' },
-      mode: { light: 'm-light', dark: 'm-dark', both: 'm-both' },
+      mode: { light: 'm-light', dark: 'm-dark' },
     }
     const switches = { unique: 'sw-unique', tint: 'sw-tint', match: 'sw-match' }
     let lastMove = ''
@@ -665,7 +622,7 @@ const html = `<!doctype html>
       const role = (which) => (state[which] === 'auto' ? which + ' from the primary' : hueName(state[which]) + ' ' + which)
       document.getElementById('summary').textContent = [
         name + ' (' + hex + ') primary, ' + role('secondary') + ', ' + role('tertiary') + '.',
-        { standard: 'Standard', medium: 'Medium', high: 'High' }[state.contrast] + ' contrast' + (state.tint ? ', tinted neutrals' : '') + ', ' + (state.match ? 'accents match the brand exactly.' : 'accents harmonized toward the primary.'),
+        { standard: 'Standard', medium: 'Medium', high: 'High' }[state.contrast] + ' contrast' + (state.tint ? ', tinted neutrals' : '') + ', ' + (state.match ? 'exact brand colors.' : 'brand colors harmonized toward the primary.'),
         lastMove,
       ].filter(Boolean).join(' ')
       theme()
