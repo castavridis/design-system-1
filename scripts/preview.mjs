@@ -299,7 +299,7 @@ const html = `<!doctype html>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>pmndrs design system — palette</title>
+  <title>Poimandres Theme Builder</title>
   <style>
     /* Geist for the page, Geist Mono for the controls and hex values — both from the
        geist package, copied next to the page below, so nothing is fetched. */
@@ -313,15 +313,13 @@ const html = `<!doctype html>
     body { margin: 0; font: 400 14px/1.4 'Geist', ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--fg); transition: background .15s ease, color .15s ease; }
     h1, h2, h3 { font-weight: 900; }
     code, kbd, pre, samp, .hex { font-family: 'Geist Mono', ui-monospace, monospace; font-weight: 400; }
-    header { padding: 32px 40px 8px; }
-    header h1 { margin: 0 0 4px; font-size: 20px; }
-    header p { margin: 0; color: var(--muted); }
-    main { padding: 8px 40px 0; }
+    main { padding: 32px 40px 0; }
     h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 36px 0 12px; }
     /* Controls: a vertical sheet floating at the right; the page leaves room for it. */
     .controls { font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; position: fixed; top: 16px; right: 16px; z-index: 3; width: 324px; max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 14px; padding: 18px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); }
-    header, .logos, main { padding-right: 380px; }
+    .logos, main { padding-right: 380px; }
     .controls .checks { display: grid; gap: 10px; }
+    .builder-title { margin: 0; font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; font-weight: 900; font-size: 20px; line-height: 1.15; letter-spacing: -.01em; }
     .controls .field { display: grid; gap: 6px; }
     .controls .label { font-size: 12px; color: var(--muted); }
     .controls button { font: inherit; color: var(--fg); cursor: pointer; }
@@ -344,8 +342,7 @@ const html = `<!doctype html>
     /* Narrow screens: no room to float, so the sheet sits at the top and scrolls away. */
     @media (max-width: 900px) {
       .controls { position: static; width: auto; max-height: none; margin: 0 16px; box-shadow: none; }
-      header, .logos, main { padding-right: 16px; }
-      header, main, .logos { padding-left: 16px; }
+      main, .logos { padding-left: 16px; padding-right: 16px; }
     }
     .lbl { font-weight: 600; font-size: 12px; word-break: break-word; }
     .hex { font-size: 11px; font-variant-numeric: tabular-nums; opacity: .85; }
@@ -397,11 +394,8 @@ const html = `<!doctype html>
   </style>
 </head>
 <body>
-  <header>
-    <h1>pmndrs design system — brand palette</h1>
-    <p>The palette the registry ships, computed live from the seed. Try the brand hues as primary, secondary and tertiary, and see the result in light and dark.</p>
-  </header>
-  <aside class="controls" aria-label="Palette options">
+  <aside class="controls" aria-labelledby="builder-title">
+    <h1 class="builder-title" id="builder-title">Poimandres Theme Builder</h1>
     <div class="field"><span class="label" id="l-mode">Mode</span>
       <div class="seg" role="group" aria-labelledby="l-mode"><button id="m-light" aria-pressed="false">Light</button><button id="m-dark" aria-pressed="false">Dark</button></div>
     </div>
@@ -511,8 +505,6 @@ const html = `<!doctype html>
         }
         return h + '</div>'
       }
-      html += '<h2>Scheme</h2>'
-      html += '<p class="legend">Laid out like Material Theme Builder. Each brand color is a custom-color row: Purple Container is MTB\u2019s Custom Color 1 Container. Hues picked as secondary or tertiary show in those columns instead.</p>'
       html += '<div class="schemes">' + VIEWS[state.view].map(schemeCard).join('') + '</div>'
 
       const seeded = ['secondary', 'tertiary'].filter((which) => state[which] !== 'auto')
