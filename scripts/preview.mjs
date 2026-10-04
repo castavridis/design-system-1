@@ -517,8 +517,9 @@ const html = `<!doctype html>
 
       const seeded = ['secondary', 'tertiary'].filter((which) => state[which] !== 'auto')
       // The primary's hue, and a brand hue picked as secondary or tertiary, show
-      // as that role instead, so they drop out of the accents everywhere they
-      // are listed: the seven brand colours, each once.
+      // as that role instead, so they drop out of the brand swatches and the
+      // scheme's custom rows: the seven brand colours, each once. The ramps
+      // still show every one.
       const picked = new Set([state.primary, ...seeded.map((which) => state[which])])
 
       html += '<h2>Tonal reference ramps (--md-ref-palette-*)</h2>'
@@ -528,7 +529,8 @@ const html = `<!doctype html>
         ramps[hue] = ramp
         if (hue === 'primary') for (const which of ['secondary', 'tertiary']) ramps[which] = familyOf(which).ramp
       }
-      for (const [hue, ramp] of Object.entries(ramps).filter(([hue]) => !picked.has(hue))) {
+      // Every ramp, even where a brand colour repeats as the primary, secondary or tertiary.
+      for (const [hue, ramp] of Object.entries(ramps)) {
         const label = COLOR_NAMES[hue] ?? hue
         html += '<div class="ramp"><div class="ramp-name">' + label + '</div><div class="tones">'
         for (const t of ramp) {
