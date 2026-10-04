@@ -301,14 +301,16 @@ const html = `<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>pmndrs design system — palette</title>
   <style>
-    /* Geist Mono, from the geist package — copied next to the page below, so nothing is fetched. */
+    /* Geist for the page, Geist Mono for the controls and hex values — both from the
+       geist package, copied next to the page below, so nothing is fetched. */
+    @font-face { font-family: 'Geist'; src: url('fonts/Geist-Variable.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
     @font-face { font-family: 'Geist Mono'; src: url('fonts/GeistMono-Variable.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
     * { box-sizing: border-box; }
     /* Page chrome, from the shipped palette's own surface roles. These are the
        first paint; the script then sets them for whichever view is chosen. */
     :root { ${chromeCss('light')} }
     @media (prefers-color-scheme: dark) { :root { ${chromeCss('dark')} } }
-    body { margin: 0; font: 400 14px/1.4 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bg); color: var(--fg); transition: background .15s ease, color .15s ease; }
+    body { margin: 0; font: 400 14px/1.4 'Geist', ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--fg); transition: background .15s ease, color .15s ease; }
     h1, h2, h3 { font-weight: 900; }
     code, kbd, pre, samp, .hex { font-family: 'Geist Mono', ui-monospace, monospace; font-weight: 400; }
     header { padding: 32px 40px 8px; }
@@ -317,7 +319,7 @@ const html = `<!doctype html>
     main { padding: 8px 40px 64px; }
     h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 36px 0 12px; }
     /* Controls: a vertical sheet floating at the right; the page leaves room for it. */
-    .controls { position: fixed; top: 16px; right: 16px; z-index: 3; width: 324px; max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 14px; padding: 18px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); }
+    .controls { font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace; position: fixed; top: 16px; right: 16px; z-index: 3; width: 324px; max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 14px; padding: 18px; background: var(--panel); color: var(--fg); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 12px 32px rgba(0, 0, 0, .18); }
     header, .logos, main { padding-right: 380px; }
     .controls .checks { display: grid; gap: 10px; }
     .controls .field { display: grid; gap: 6px; }
@@ -366,7 +368,7 @@ const html = `<!doctype html>
     /* Heights are minimums: a label that wraps at narrow widths grows its row instead of spilling. */
     .m3-col { display: grid; grid-template-rows: minmax(80px, auto) minmax(36px, auto) minmax(80px, auto) minmax(36px, auto); }
     .m3-strip { display: grid; }
-    .m3-cell { padding: 8px 12px; font-size: 12px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; min-width: 0; }
+    .m3-cell { padding: 8px 12px; font-size: 13px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; min-width: 0; }
     .m3-cell .h { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 10px; opacity: .8; font-variant-numeric: tabular-nums; }
     .m3-cell.short { flex-direction: row; flex-wrap: wrap; align-items: center; }
     .m3-surfaces { display: grid; grid-template-rows: minmax(96px, auto) minmax(96px, auto) minmax(36px, auto); }
@@ -406,7 +408,7 @@ const html = `<!doctype html>
       <div class="swatches" role="group" aria-labelledby="l-primary">${PRIMARIES.map(([key, name, hex]) => `<button class="swatch" id="p-${key}" style="background:${hex}" title="${name} ${hex}" aria-label="${name}" aria-pressed="${key === 'lime'}"></button>`).join('')}</div>
     </div>
     ${['secondary', 'tertiary'].map((which) => `<div class="field"><span class="label" id="l-${which}">${which[0].toUpperCase() + which.slice(1)} Color: Auto</span>
-      <div class="swatches" role="group" aria-labelledby="l-${which}"><button class="auto" id="${which[0]}-auto" title="Derived from the primary" aria-pressed="true">Auto</button>${PRIMARIES.map(([key, name, hex]) => `<button class="swatch" id="${which[0]}-${key}" style="background:${hex}" title="${name} ${hex}" aria-label="${name}" aria-pressed="false"></button>`).join('')}</div>
+      <div class="swatches" role="group" aria-labelledby="l-${which}">${PRIMARIES.map(([key, name, hex]) => `<button class="swatch" id="${which[0]}-${key}" style="background:${hex}" title="${name} ${hex}" aria-label="${name}" aria-pressed="false"></button>`).join('')}<button class="auto" id="${which[0]}-auto" title="Derived from the primary" aria-pressed="true">Auto</button></div>
     </div>`).join('\n    ')}
     <div class="checks">
       <label class="check" title="Keep primary, secondary and tertiary on different brand hues"><input type="checkbox" id="sw-unique" checked /> Use unique colors</label>
@@ -629,10 +631,11 @@ const html = `<!doctype html>
 const out = new URL('../demo/palette.html', import.meta.url)
 mkdirSync(new URL('./', out), { recursive: true })
 
-// The page is set in Geist Mono, the variable cut: Regular 400 for body, Black 900 for headlines.
+// The fonts the page uses, both variable cuts: Geist for the page (400 body, 900
+// headlines) and Geist Mono for the controls and hex values.
 const fonts = new URL('../node_modules/geist/dist/fonts/', import.meta.url)
 mkdirSync(new URL('./fonts/', out), { recursive: true })
-for (const file of ['geist-mono/GeistMono-Variable.woff2']) {
+for (const file of ['geist-sans/Geist-Variable.woff2', 'geist-mono/GeistMono-Variable.woff2']) {
   copyFileSync(new URL(file, fonts), new URL(`./fonts/${file.split('/')[1]}`, out))
 }
 // The logo SVGs, from assets/ — the same files the `logo` registry item installs.
