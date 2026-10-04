@@ -35,12 +35,22 @@ import {
 } from '@material/material-color-utilities'
 
 /**
- * Neutral at chroma 2 — a warm grey, chosen against 10/6/4/1/0 side by side.
- * Neutral-variant (outlines, secondary text) is scaled by the same factor, so
- * the scheme's 10:12 ratio between the two holds.
+ * Two pairs of structural ramps, each pair at the scheme's 10:12 ratio between
+ * neutral and neutral-variant:
+ *
+ * - untinted: the neutral seed's warm-grey hue at chroma 2 / 2.4 — chosen
+ *   against 10/6/4/1/0 side by side;
+ * - tinted: the primary's hue at a calm 6 / 8, MD3's own recipe (`tonalSpot`
+ *   draws its neutrals from the source hue) under `vibrant`'s 10 / 12.
+ *
+ * What ships mixes them: neutral (surfaces, body text) untinted, and
+ * neutral-variant (outlines, secondary text) tinted, so the brand shows in the
+ * details while the page stays grey. "Tint neutrals" swaps the two.
  */
-export const NEUTRAL_CHROMA = 2
-export const NEUTRAL_VARIANT_CHROMA = 2.4
+export const UNTINTED_NEUTRAL_CHROMA = 2
+export const UNTINTED_NEUTRAL_VARIANT_CHROMA = 2.4
+export const TINTED_NEUTRAL_CHROMA = 6
+export const TINTED_NEUTRAL_VARIANT_CHROMA = 8
 
 const schemes = {
   content: SchemeContent,
@@ -52,24 +62,31 @@ const schemes = {
   vibrant: SchemeVibrant,
 }
 
-/**
- * The redrawn ramps for a seed, as `{ paletteName: TonalPalette }`, keyed by
- * the CSS palette name (`neutral`, `neutral-variant`).
- *
- * Hues come from the same places `builder()` takes them: the neutral seed for
- * `neutral` and the scheme's own neutral-variant palette (derived from
- * `source`) for `neutral-variant`.
- */
-export function overridePalettes({ source, scheme = 'tonalSpot', contrast = 0, neutral }) {
+/** Both pairs for a seed. Untinted takes the neutral seed's hue, tinted the primary's. */
+function rampsFor({ source, scheme = 'tonalSpot', contrast = 0, neutral }) {
   const Scheme = schemes[scheme]
   if (!Scheme) throw new Error(`unknown scheme ${scheme}`)
-  const base = new Scheme(Hct.fromInt(argbFromHex(source)), false, contrast)
-  const neutralHue = neutral ? Hct.fromInt(argbFromHex(neutral)).hue : base.neutralPalette.hue
-
+  const neutralHue = neutral ? Hct.fromInt(argbFromHex(neutral)).hue : new Scheme(Hct.fromInt(argbFromHex(source)), false, contrast).neutralPalette.hue
+  const primaryHue = Hct.fromInt(argbFromHex(source)).hue
   return {
-    neutral: TonalPalette.fromHueAndChroma(neutralHue, NEUTRAL_CHROMA),
-    'neutral-variant': TonalPalette.fromHueAndChroma(base.neutralVariantPalette.hue, NEUTRAL_VARIANT_CHROMA),
+    untinted: {
+      neutral: TonalPalette.fromHueAndChroma(neutralHue, UNTINTED_NEUTRAL_CHROMA),
+      neutralVariant: TonalPalette.fromHueAndChroma(neutralHue, UNTINTED_NEUTRAL_VARIANT_CHROMA),
+    },
+    tinted: {
+      neutral: TonalPalette.fromHueAndChroma(primaryHue, TINTED_NEUTRAL_CHROMA),
+      neutralVariant: TonalPalette.fromHueAndChroma(primaryHue, TINTED_NEUTRAL_VARIANT_CHROMA),
+    },
   }
+}
+
+/**
+ * The ramps that ship, as `{ paletteName: TonalPalette }` keyed by the CSS
+ * palette name: neutral untinted, neutral-variant tinted.
+ */
+export function overridePalettes(seed) {
+  const { untinted, tinted } = rampsFor(seed)
+  return { neutral: untinted.neutral, 'neutral-variant': tinted.neutralVariant }
 }
 
 /** `--md-ref-palette-neutral-variant-40` → `['neutral-variant', 40]`. Greedy, so `neutral-10` is `neutral` tone 10. */
@@ -168,21 +185,13 @@ export function overrideFigmaTokens(tokens, palettes) {
 }
 
 /**
- * Light (Primary) and Dark (Primary): the same roles and tones as the shipped
- * light and dark, with the two structural neutral ramps tinted by the primary.
- * This is MD3's own default recipe — `tonalSpot` draws its neutrals from the
- * source hue — at a calm 6 / 8, under `vibrant`'s 10 / 12. Contrast does not
- * move: only chroma changes, and every role keeps its tone.
+ * "Tint neutrals": the shipped pair swapped — neutral tinted, neutral-variant
+ * untinted. The same roles and tones as the shipped light and dark, so contrast
+ * does not move; only chroma and hue do.
  */
-export const PRIMARY_MODE_NEUTRAL_CHROMA = 6
-export const PRIMARY_MODE_NEUTRAL_VARIANT_CHROMA = 8
-
-export function primaryModePalettes({ source }) {
-  const hue = Hct.fromInt(argbFromHex(source)).hue
-  return {
-    neutral: TonalPalette.fromHueAndChroma(hue, PRIMARY_MODE_NEUTRAL_CHROMA),
-    'neutral-variant': TonalPalette.fromHueAndChroma(hue, PRIMARY_MODE_NEUTRAL_VARIANT_CHROMA),
-  }
+export function tintedNeutralPalettes(seed) {
+  const { untinted, tinted } = rampsFor(seed)
+  return { neutral: tinted.neutral, 'neutral-variant': untinted.neutralVariant }
 }
 
 /**

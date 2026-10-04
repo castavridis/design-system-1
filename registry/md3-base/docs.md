@@ -17,7 +17,7 @@ const css = builder(source, rest).toCss()
 
 That repeats the palette in every document — around 32 kB raw, but 2 kB brotli, since it is all hex declarations. Only worth hoisting into your stylesheet with a build step if you have measured that it matters; the build step costs a generated file and an import-order rule that fails silently whenever your seed matches the baked default.
 
-One difference from the baked `md3` palette: it draws the neutral ramps at chroma 2, which `builder()` cannot do yet. Computed here, surfaces come out at the scheme's chroma 10 — warmer and yellower.
+One difference from the baked `md3` palette: its neutral ramp is a warm grey at chroma 2 and its neutral-variant ramp the primary's hue at chroma 8, which `builder()` cannot do yet. Computed here, both come out at the scheme's chroma 10 and 12 — warmer and yellower.
 
 `<Mtb>` from `material-theme-builder/react` does the same as a client component. Avoid it in an app that renders on the server, but it is the right tool where there is no build to hook — a Storybook preview decorator, for instance. With `next-themes`, nest `<ThemeProvider>` inside it, not around it.
 

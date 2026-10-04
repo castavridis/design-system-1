@@ -23,7 +23,7 @@
  */
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { builder } from 'material-theme-builder'
-import { contrastCustomColours, overrideCssBlock, overridePalettes, primaryModePalettes } from './palette-overrides.mjs'
+import { contrastCustomColours, overrideCssBlock, overridePalettes, tintedNeutralPalettes } from './palette-overrides.mjs'
 
 // --- brand seed (mirror of pmndrsMtb in registry/md3-base/md3.ts) -----------
 const BRAND = {
@@ -129,7 +129,7 @@ const schemesFor = (seed) => {
   // The builder gives custom colours no contrast; these give them the primary's.
   const rootBlock = contrastCustomColours(overrideCssBlock(blocks[':root'], overrides, light), seed, overrides, light)
   const darkBlock = contrastCustomColours(overrideCssBlock(blocks['.dark'], overrides, dark), seed, overrides, dark)
-  const tint = primaryModePalettes({ source })
+  const tint = tintedNeutralPalettes(seed)
   const lightPrimary = overrideCssBlock(rootBlock, tint, light)
   return {
     light: { ...rootBlock },
@@ -416,7 +416,7 @@ const html = `<!doctype html>
       <div class="field"><span class="label" id="l-mode">Mode</span>
         <div class="seg" role="group" aria-labelledby="l-mode"><button id="m-light" aria-pressed="false">Light</button><button id="m-dark" aria-pressed="false">Dark</button></div>
       </div>
-      <label class="check" title="Surfaces, text and outlines take a hint of the primary"><input type="checkbox" id="sw-tint" /> Tint neutrals</label>
+      <label class="check" title="Swap the neutrals: surfaces and text take the primary's hue, outlines and secondary text go grey"><input type="checkbox" id="sw-tint" /> Tint neutrals</label>
     </section>
     <p class="summary" id="summary" aria-live="polite"></p>
   </aside>
@@ -533,7 +533,7 @@ const html = `<!doctype html>
       html += '</div>'
 
       html += '<h2>Tonal reference ramps (--md-ref-palette-*)</h2>'
-      html += '<p class="legend">Scheme-independent tones the roles alias onto — identical in light and dark.' + (isPrimaryView() ? ' Tinted: Neutral and Neutral-Variant take the primary\u2019s hue.' : '') + '</p>'
+      html += '<p class="legend">Scheme-independent tones the roles alias onto — identical in light and dark. Neutral is grey; Neutral-Variant carries a hint of the primary.' + (isPrimaryView() ? ' Tint neutrals swaps the pair: Neutral takes the primary\u2019s hue and Neutral-Variant goes grey.' : '') + '</p>'
       const ramps = {}
       for (const [hue, ramp] of Object.entries(isPrimaryView() ? d.tonalPrimary : d.tonal)) {
         ramps[hue] = ramp

@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { argbFromHex, Hct } from '@material/material-color-utilities'
 import registry from './registry.json' with { type: 'json' }
-import { NEUTRAL_CHROMA, NEUTRAL_VARIANT_CHROMA } from './scripts/palette-overrides.mjs'
+import { TINTED_NEUTRAL_VARIANT_CHROMA, UNTINTED_NEUTRAL_CHROMA } from './scripts/palette-overrides.mjs'
 
 /** Every `--name: value` pair under an item's `css`, at any nesting depth. */
 function declarations(css, found = []) {
@@ -116,14 +116,15 @@ test('every Figma role resolves to the hex the baked CSS gives it', () => {
 
 /**
  * What the overrides are for, measured on the output rather than trusted from
- * the code: the surfaces are warm grey.
+ * the code: the surfaces are warm grey, and outlines and secondary text carry
+ * a hint of the primary.
  */
 test('the baked neutral ramps carry the overridden chroma', () => {
   const root = registry.items.find((item) => item.name === 'md3').css[':root']
   const chromaOf = (palette, tone) => Hct.fromInt(argbFromHex(root[`--md-ref-palette-${palette}-${tone}`])).chroma
   const expected = {
-    neutral: NEUTRAL_CHROMA,
-    'neutral-variant': NEUTRAL_VARIANT_CHROMA,
+    neutral: UNTINTED_NEUTRAL_CHROMA,
+    'neutral-variant': TINTED_NEUTRAL_VARIANT_CHROMA,
   }
 
   // Mid tones, where sRGB can hold the chroma asked for. 8-bit rounding moves a

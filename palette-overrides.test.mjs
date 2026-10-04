@@ -14,7 +14,7 @@ import { test } from 'node:test'
 import { argbFromHex, Hct } from '@material/material-color-utilities'
 import { builder } from 'material-theme-builder'
 import { pmndrsMtb } from './registry/md3-base/md3.ts'
-import { contrastCustomColours, NEUTRAL_CHROMA, NEUTRAL_VARIANT_CHROMA, overrideCssBlock, overridePalettes } from './scripts/palette-overrides.mjs'
+import { contrastCustomColours, overrideCssBlock, overridePalettes, TINTED_NEUTRAL_VARIANT_CHROMA, UNTINTED_NEUTRAL_CHROMA } from './scripts/palette-overrides.mjs'
 
 const NEUTRAL = ['background', 'on-background', 'surface', 'surface-dim', 'surface-bright', 'surface-container-lowest', 'surface-container-low', 'surface-container', 'surface-container-high', 'surface-container-highest', 'on-surface', 'inverse-surface', 'inverse-on-surface']
 const NEUTRAL_VARIANT = ['surface-variant', 'on-surface-variant', 'outline', 'outline-variant']
@@ -54,7 +54,7 @@ for (const contrast of [0.5, 1]) {
       const after = isDark ? { ...overrideCssBlock(raw[':root'], palettes, { source, scheme: seed.scheme, contrast, isDark: false }), ...out } : out
 
       const problems = []
-      for (const [roles, chroma] of [[NEUTRAL, NEUTRAL_CHROMA], [NEUTRAL_VARIANT, NEUTRAL_VARIANT_CHROMA]]) {
+      for (const [roles, chroma] of [[NEUTRAL, UNTINTED_NEUTRAL_CHROMA], [NEUTRAL_VARIANT, TINTED_NEUTRAL_VARIANT_CHROMA]]) {
         for (const role of roles) {
           const name = `--md-sys-color-${role}`
           const was = Hct.fromInt(argbFromHex(resolve(before, before[name])))
