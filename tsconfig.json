@@ -1,14 +1,17 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "Preserve",
     "moduleResolution": "bundler",
-    "types": ["node"],
+    "jsx": "react-jsx",
+    "types": ["node", "vite/client"],
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "allowJs": true,
+    "paths": { "@/*": ["./demo/src/*"] }
   },
-  "include": ["registry", "scripts"]
+  "include": ["registry", "scripts", "demo/src", "vite.config.ts"]
 }

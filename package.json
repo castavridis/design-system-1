@@ -24,14 +24,22 @@
     "@changesets/changelog-github": "^1.0.0",
     "@changesets/cli": "^3.0.0",
     "@material/material-color-utilities": "^0.3.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/lodash-es": "^4.17.12",
     "@types/node": "^26.2.0",
-    "material-theme-builder": "^5.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "material-theme-builder": "^5.2.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "shadcn": "^4.18.0",
-    "typescript": "^5.9.3"
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.2"
   },
   "dependencies": {
-    "geist": "^1.7.2"
+    "cn": "^0.4.0",
+    "geist": "^1.7.2",
+    "lodash-es": "^4.18.1"
   }
 }
