@@ -38,13 +38,13 @@ const hexOf = (key) => PRIMARIES.find(([k]) => k === key)[2]
 const CONTRASTS = [['standard', 0, 'Standard'], ['medium', 0.5, 'Medium'], ['high', 1, 'High']]
 
 // `pmndrsMtb` with the page's choices on top; every choice left out is as shipped.
-const configFor = ({ primary, contrast, harmonize = false, secondary, tertiary }) => ({
+const configFor = ({ primary, contrast, blend = false, secondary, tertiary }) => ({
   ...pmndrsMtb,
   source: hexOf(primary),
   contrast,
   ...(secondary ? { secondary: hexOf(secondary) } : {}),
   ...(tertiary ? { tertiary: hexOf(tertiary) } : {}),
-  customColors: pmndrsMtb.customColors.map((color) => ({ ...color, blend: harmonize })),
+  customColors: pmndrsMtb.customColors.map((color) => ({ ...color, blend })),
 })
 
 // `toCss()` emits exactly one `:root` and one `.dark` block; this reads them as
@@ -84,8 +84,8 @@ const cssOf = (blocks) => {
 
 /**
  * The page's stylesheets, keyed `primary/contrast/…`. Per primary and contrast,
- * one full palette per fidelity (exact, as the registry ships, or harmonized),
- * and on top of it what each brand hue changes as the secondary or the
+ * one full palette per custom colors' `blend` (off, as the registry ships, or
+ * on), and on top of it what each brand hue changes as the secondary or the
  * tertiary seed. A palette per combination would be 7 × 3 × 2 × 8 × 8; these
  * are separable instead — a secondary seed moves only the secondary roles, a
  * tertiary seed only the tertiary ones — so the page stacks them.
@@ -95,8 +95,8 @@ for (const [primary] of PRIMARIES) {
   for (const [level, contrast] of CONTRASTS) {
     const key = `${primary}/${level}`
     const shipped = blocksOf(configFor({ primary, contrast }))
-    PALETTES[`${key}/exact`] = cssOf(shipped)
-    PALETTES[`${key}/harmonized`] = cssOf(blocksOf(configFor({ primary, contrast, harmonize: true })))
+    PALETTES[`${key}/unblended`] = cssOf(shipped)
+    PALETTES[`${key}/blended`] = cssOf(blocksOf(configFor({ primary, contrast, blend: true })))
     for (const which of ['secondary', 'tertiary']) {
       for (const [hue] of PRIMARIES) PALETTES[`${key}/${which}/${hue}`] = cssOf(changes(shipped, blocksOf(configFor({ primary, contrast, [which]: hue }))))
     }
@@ -133,7 +133,7 @@ const html = `<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Poimandres Theme Builder</title>
   <!-- The palette on screen: the script swaps this for the chosen one. It opens on what ships. -->
-  <style id="palette">${PALETTES['lime/standard/exact']}</style>
+  <style id="palette">${PALETTES['lime/standard/unblended']}</style>
   <!-- The custom-colour rows the script hides: the hues picked as primary, secondary or tertiary. -->
   <style id="picked"></style>
   <style>
@@ -225,7 +225,7 @@ const html = `<!doctype html>
     </div>`).join('\n    ')}
     <div class="checks">
       <label class="check" title="Keep primary, secondary and tertiary on different brand hues"><input type="checkbox" id="sw-unique" checked /> Unique colors</label>
-      <label class="check" title="Checked: brand colors are harmonized toward the primary. Unchecked: they keep their exact hex."><input type="checkbox" id="sw-harmonize" /> Harmonize colors</label>
+      <label class="check" title="The custom colors' blend. Checked: blend: true, each is harmonized toward the primary. Unchecked: blend: false, as shipped, each is taken as given."><input type="checkbox" id="sw-blend" /> Blend custom colors</label>
     </div>
     <p class="summary" id="summary" aria-live="polite"></p>
   </aside>
@@ -252,7 +252,7 @@ const html = `<!doctype html>
     // tertiary are 'auto' (MD3 derives them from the primary) or a brand hue's
     // key; with Unique on, no two of the three share a brand hue.
     // Mode opens on the viewer's system setting.
-    const state = { primary: 'lime', secondary: 'auto', tertiary: 'auto', unique: true, mode: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', match: true, contrast: 'standard' }
+    const state = { primary: 'lime', secondary: 'auto', tertiary: 'auto', unique: true, mode: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', blend: false, contrast: 'standard' }
     const PRIMARIES = ${JSON.stringify(PRIMARIES)}
     const cap = (word) => word[0].toUpperCase() + word.slice(1)
     // 'Primary (Lime)', 'Secondary (Cyan)', 'Tertiary (Auto)'.
@@ -301,12 +301,12 @@ const html = `<!doctype html>
     }
 
     function render() {
-      // The chosen palette: the fidelity's, then what a seeded secondary or
-      // tertiary changes on top of it.
+      // The chosen palette: the one for the custom colors' blend, then what a
+      // seeded secondary or tertiary changes on top of it.
       const key = state.primary + '/' + state.contrast
       const seeded = ['secondary', 'tertiary'].filter((which) => state[which] !== 'auto')
       const css = [
-        PALETTES[key + '/' + (state.match ? 'exact' : 'harmonized')],
+        PALETTES[key + '/' + (state.blend ? 'blended' : 'unblended')],
         ...seeded.map((which) => PALETTES[key + '/' + which + '/' + state[which]]),
       ].join('\\n')
       document.getElementById('palette').textContent = css
@@ -368,9 +368,8 @@ const html = `<!doctype html>
       contrast: { standard: 'c-standard', medium: 'c-medium', high: 'c-high' },
       mode: { light: 'm-light', dark: 'm-dark' },
     }
-    // Checkbox → state. "Harmonize colors" is the inverse of colour match:
-    // checked means match = false.
-    const switches = { unique: ['sw-unique', false], match: ['sw-harmonize', true] }
+    // Checkbox → state: checked is true.
+    const switches = { unique: 'sw-unique', blend: 'sw-blend' }
     let lastMove = ''
     function update() {
       for (const [g, opts] of Object.entries(groups)) {
@@ -380,14 +379,14 @@ const html = `<!doctype html>
         const taken = takenFor(which)
         for (const [key] of PRIMARIES) document.getElementById(which[0] + '-' + key).disabled = taken.includes(key)
       }
-      for (const [key, [id, inverse]] of Object.entries(switches)) document.getElementById(id).checked = inverse ? !state[key] : state[key]
+      for (const [key, id] of Object.entries(switches)) document.getElementById(id).checked = state[key]
       for (const which of ['primary', 'secondary', 'tertiary']) document.getElementById('l-' + which).textContent = cap(which) + ' Color: ' + hueName(state[which])
       // One plain sentence for what is on screen.
       const [, name, hex] = PRIMARIES.find(([key]) => key === state.primary)
       const role = (which) => (state[which] === 'auto' ? which + ' from the primary' : hueName(state[which]) + ' ' + which)
       document.getElementById('summary').textContent = [
         name + ' (' + hex + ') primary, ' + role('secondary') + ', ' + role('tertiary') + '.',
-        { standard: 'Standard', medium: 'Medium', high: 'High' }[state.contrast] + ' contrast' + ', ' + (state.match ? 'exact brand colors.' : 'brand colors harmonized toward the primary.'),
+        { standard: 'Standard', medium: 'Medium', high: 'High' }[state.contrast] + ' contrast, ' + (state.blend ? 'custom colors blended toward the primary.' : 'custom colors unblended.'),
         lastMove,
       ].filter(Boolean).join(' ')
       render()
@@ -395,7 +394,7 @@ const html = `<!doctype html>
     for (const [g, opts] of Object.entries(groups)) {
       for (const [val, id] of Object.entries(opts)) document.getElementById(id).onclick = () => { state[g] = val; lastMove = enforceUnique(); update() }
     }
-    for (const [key, [id, inverse]] of Object.entries(switches)) document.getElementById(id).onchange = (event) => { state[key] = inverse ? !event.target.checked : event.target.checked; lastMove = enforceUnique(); update() }
+    for (const [key, id] of Object.entries(switches)) document.getElementById(id).onchange = (event) => { state[key] = event.target.checked; lastMove = enforceUnique(); update() }
     update()
 
     // A fresh query string loads the SVG as a new document, so its animation starts over.
