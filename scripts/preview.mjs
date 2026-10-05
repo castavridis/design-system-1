@@ -149,7 +149,7 @@ const html = `<!doctype html>
     [hidden] { display: none !important; }
     body { margin: 0; font: 400 14px/1.4 'Geist', ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--fg); transition: background .15s ease, color .15s ease; }
     h1, h2, h3 { font-weight: 900; }
-    code, kbd, pre, samp, .hex { font-family: 'Geist Mono', ui-monospace, monospace; font-weight: 400; }
+    code, kbd, pre, samp { font-family: 'Geist Mono', ui-monospace, monospace; font-weight: 400; }
     main { padding: 32px 40px 0 380px; }
     h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 36px 0 12px; }
     /* Controls: a vertical sheet floating at the left; main and .logos leave room for it (380px). */
@@ -181,20 +181,9 @@ const html = `<!doctype html>
       main, .logos { padding-left: 16px; padding-right: 16px; }
     }
     .lbl { font-weight: 600; font-size: 12px; word-break: break-word; }
-    .hex { font-size: 11px; font-variant-numeric: tabular-nums; opacity: .85; }
     .legend { color: var(--muted); font-size: 12px; margin: 0 0 12px; }
-    .nearest { display: flex; flex-wrap: wrap; gap: 12px; }
-    .near { width: 168px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-    /* Brand and generated colours touching, so the eye compares them directly. */
-    .near-sw { height: 72px; display: grid; grid-template-columns: 1fr 1fr; }
-    .near-half { display: flex; flex-direction: column; justify-content: space-between; padding: 6px 8px; min-width: 0; }
-    .near-half .cap { font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; opacity: .85; }
-    .near-half .near-tone { font-weight: 900; font-size: 18px; font-variant-numeric: tabular-nums; align-self: flex-end; }
-    .near-hexes { display: grid; grid-template-columns: 1fr 1fr; font-size: 11px; color: var(--muted); }
-    .near-meta { padding: 7px 9px; display: flex; flex-direction: column; gap: 3px; background: var(--panel); }
     /* Scheme: Material Theme Builder's poster, one card per mode. */
     .schemes > div { border-radius: 16px; }
-    .near-auth { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
     .logos { padding: 8px 40px 64px 380px; }
     .logo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
     .logo { margin: 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
@@ -234,9 +223,6 @@ const html = `<!doctype html>
     <h2>Tonal reference ramps (--md-ref-palette-*)</h2>
     <p class="legend">Scheme-independent tones the roles alias onto — identical in light and dark. Neutral is a warm grey; Neutral-Variant carries a hint of the lime.</p>
     ${shadesHtml}
-    <h2>Poimandres brand colors → nearest MD3 ramp step</h2>
-    <p class="legend">For each brand colour, the closest step in its own ramp (by CIELAB ΔE). Each swatch puts the brand hex (left) against the generated MD3 step (right); the big number is that step’s tone.</p>
-    <div class="nearest" id="nearest"></div>
   </main>
   <section class="logos">
     <h2>Logo (registry item <code>logo</code>)</h2>
@@ -256,49 +242,7 @@ const html = `<!doctype html>
     const PRIMARIES = ${JSON.stringify(PRIMARIES)}
     const cap = (word) => word[0].toUpperCase() + word.slice(1)
     // 'Primary (Lime)', 'Secondary (Cyan)', 'Tertiary (Auto)'.
-    const roleTitle = (which) => cap(which) + ' (' + hueName(state[which]) + ')'
     const hueName = (key) => (key === 'auto' ? 'Auto' : PRIMARIES.find(([k]) => k === key)[1])
-    const hexOf = (key) => PRIMARIES.find(([k]) => k === key)[2]
-
-    const ink = (hex) => {
-      const h = hex.replace('#', '')
-      if (h.length < 6) return '#000'
-      const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16))
-      return 0.2126 * r + 0.7152 * g + 0.0722 * b > 140 ? '#111' : '#fff'
-    }
-
-    // Perceptual colour distance, to find the ramp step closest to a brand hex.
-    // sRGB → linear → XYZ (D65) → CIELAB, then CIE76 ΔE (Euclidean in Lab).
-    const hexToLab = (hex) => {
-      const h = hex.replace('#', '')
-      const lin = (i) => {
-        const c = parseInt(h.slice(i, i + 2), 16) / 255
-        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-      }
-      const [r, g, b] = [lin(0), lin(2), lin(4)]
-      let x = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047
-      const y = r * 0.2126 + g * 0.7152 + b * 0.0722
-      let z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883
-      const f = (t) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116)
-      const [fx, fy, fz] = [f(x), f(y), f(z)]
-      return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)]
-    }
-    const deltaE = (a, b) => {
-      const [la, lb] = [hexToLab(a), hexToLab(b)]
-      return Math.hypot(la[0] - lb[0], la[1] - lb[1], la[2] - lb[2])
-    }
-
-    // For a brand colour, the step in a ramp closest to its authored hex.
-    const nearestIn = (authored, ramp) =>
-      ramp.reduce((best, t) => { const de = deltaE(authored, t.hex); return de < best.de ? { tone: t.tone, hex: t.hex, de } : best }, { de: Infinity })
-
-    // Every ramp in a stylesheet, as { name: [{ tone, hex }] }. A later shade of
-    // the same name wins, as it does in the browser.
-    const rampsOf = (css) => {
-      const shades = {}
-      for (const [, name, tone, hex] of css.matchAll(/--md-ref-palette-([a-z-]+)-(\\d+): (#[0-9a-fA-F]{6})/g)) (shades[name] ??= {})[tone] = hex
-      return Object.fromEntries(Object.entries(shades).map(([name, tones]) => [name, Object.entries(tones).map(([tone, hex]) => ({ tone: Number(tone), hex }))]))
-    }
 
     function render() {
       // The chosen palette: the one for the custom colors' blend, then what a
@@ -315,30 +259,11 @@ const html = `<!doctype html>
       document.getElementById('scheme-dark').hidden = state.mode !== 'dark'
 
       // The primary's hue, and a brand hue picked as secondary or tertiary, show
-      // as that role instead, so they drop out of the brand swatches and the
-      // scheme's custom rows: the seven brand colours, each once. The ramps
-      // still show every one. A custom row is the one whose cell is titled with
+      // as that role instead, so they drop out of the scheme's custom rows: the
+      // seven brand colours, each once. The ramps still show every one. A custom row is the one whose cell is titled with
       // the hue's name; !important, as the poster lays it out inline.
       const picked = new Set([state.primary, ...seeded.map((which) => state[which])])
       document.getElementById('picked').textContent = [...picked].map((name) => '.schemes div:has(> div > [title="' + name + '"]) { display: none !important; }').join('\\n')
-
-      const ramps = rampsOf(css)
-      const nearest = [
-        { label: roleTitle('primary'), authored: hexOf(state.primary), ...nearestIn(hexOf(state.primary), ramps.primary) },
-        ...seeded.map((which) => ({ label: roleTitle(which), authored: hexOf(state[which]), ...nearestIn(hexOf(state[which]), ramps[which]) })),
-        ...PRIMARIES.filter(([name]) => !picked.has(name)).map(([name, label, hex]) => ({ label, authored: hex, ...nearestIn(hex, ramps[name]) })),
-      ]
-      let html = ''
-      for (const n of nearest) {
-        // Left: the brand hex as authored. Right: the closest step MD3 generated.
-        html += '<div class="near"><div class="near-sw">' +
-          '<div class="near-half" style="background:' + n.authored + ';color:' + ink(n.authored) + '"><span class="cap">Brand</span></div>' +
-          '<div class="near-half" style="background:' + n.hex + ';color:' + ink(n.hex) + '"><span class="cap">M3</span><span class="near-tone">' + n.tone + '</span></div></div>' +
-          '<div class="near-meta"><span class="lbl">' + n.label + '</span>' +
-          '<span class="near-hexes hex"><span>' + n.authored.toLowerCase() + '</span><span>' + n.hex + '</span></span>' +
-          '<span class="near-auth">ΔE ' + Math.round(n.de) + ' · tone ' + n.tone + '</span></div></div>'
-      }
-      document.getElementById('nearest').innerHTML = html
     }
 
     // With Unique on, a seeded secondary or tertiary may not share the primary's
