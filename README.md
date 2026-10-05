@@ -92,5 +92,4 @@ Never hardcode a font family (`font-sans` / `font-mono`). Icons come from
 npm install
 npm run build   # regenerate registry.json + figma/*.tokens.json
 npm run lgtm    # outputs are current and valid, preset code round-trips
-npm run preview # the palette in a browser: demo/, a Vite app on <Mtb> + the scheme poster
 ```
