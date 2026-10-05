@@ -1,0 +1,41 @@
+@import "tailwindcss";
+/* The M3 roles as utilities (`bg-surface`, `text-on-surface-variant`), for the page chrome. */
+@plugin "material-theme-builder/tailwind";
+
+/* Geist for the page, Geist Mono for the controls and hex values — both variable
+   cuts from the geist package, so nothing is fetched. */
+@font-face {
+  font-family: "Geist";
+  src: url("../../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@theme {
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@layer base {
+  /* Page chrome, from the scheme's own surface roles, so the page reads as a real light or dark theme. */
+  body {
+    margin: 0;
+    font: 400 14px/1.4 var(--font-sans);
+    background: var(--md-sys-color-surface);
+    color: var(--md-sys-color-on-surface);
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
+  }
+  h1,
+  h2,
+  h3 {
+    font-weight: 900;
+  }
+}

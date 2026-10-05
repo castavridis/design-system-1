@@ -16,7 +16,8 @@
  * The fix for that belongs upstream, as a chroma option on the neutral seed;
  * once it exists, this file goes and the seed carries the numbers.
  *
- * Shared by `build.mjs` and `preview.mjs`, so the page shows what ships.
+ * Shared by `build.mjs` and the demo page (`demo/src/palette.ts`), so the page
+ * shows what ships.
  */
 import {
   argbFromHex,
