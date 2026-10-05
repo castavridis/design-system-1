@@ -38,10 +38,11 @@ const hexOf = (key) => PRIMARIES.find(([k]) => k === key)[2]
 const CONTRASTS = [['standard', 0, 'Standard'], ['medium', 0.5, 'Medium'], ['high', 1, 'High']]
 
 // `pmndrsMtb` with the page's choices on top; every choice left out is as shipped.
-const configFor = ({ primary, contrast, blend = false, secondary, tertiary }) => ({
+const configFor = ({ primary, contrast, colorMatch, blend = false, secondary, tertiary }) => ({
   ...pmndrsMtb,
   source: hexOf(primary),
   contrast,
+  colorMatch,
   ...(secondary ? { secondary: hexOf(secondary) } : {}),
   ...(tertiary ? { tertiary: hexOf(tertiary) } : {}),
   customColors: pmndrsMtb.customColors.map((color) => ({ ...color, blend })),
@@ -83,22 +84,26 @@ const cssOf = (blocks) => {
 }
 
 /**
- * The page's stylesheets, keyed `primary/contrast/…`. Per primary and contrast,
- * one full palette per custom colors' `blend` (off, as the registry ships, or
- * on), and on top of it what each brand hue changes as the secondary or the
- * tertiary seed. A palette per combination would be 7 × 3 × 2 × 8 × 8; these
- * are separable instead — a secondary seed moves only the secondary roles, a
- * tertiary seed only the tertiary ones — so the page stacks them.
+ * The page's stylesheets, keyed `primary/contrast/match/…`. Per primary,
+ * contrast and Color match (off is `colorMatch: false`, so tonal spot, as in
+ * Material Theme Builder), one full palette as the registry ships it, and on
+ * top of it what the custom colors' `blend`, and each brand hue as the
+ * secondary or the tertiary seed, change. A palette per combination would be
+ * 7 × 3 × 2 × 2 × 8 × 8; these are separable instead — `blend` moves only the
+ * custom colors, a secondary seed only the secondary roles, a tertiary seed
+ * only the tertiary ones — so the page stacks them.
  */
 const PALETTES = {}
 for (const [primary] of PRIMARIES) {
   for (const [level, contrast] of CONTRASTS) {
-    const key = `${primary}/${level}`
-    const shipped = blocksOf(configFor({ primary, contrast }))
-    PALETTES[`${key}/unblended`] = cssOf(shipped)
-    PALETTES[`${key}/blended`] = cssOf(blocksOf(configFor({ primary, contrast, blend: true })))
-    for (const which of ['secondary', 'tertiary']) {
-      for (const [hue] of PRIMARIES) PALETTES[`${key}/${which}/${hue}`] = cssOf(changes(shipped, blocksOf(configFor({ primary, contrast, [which]: hue }))))
+    for (const colorMatch of [true, false]) {
+      const key = `${primary}/${level}/${colorMatch}`
+      const shipped = blocksOf(configFor({ primary, contrast, colorMatch }))
+      PALETTES[key] = cssOf(shipped)
+      PALETTES[`${key}/blend`] = cssOf(changes(shipped, blocksOf(configFor({ primary, contrast, colorMatch, blend: true }))))
+      for (const which of ['secondary', 'tertiary']) {
+        for (const [hue] of PRIMARIES) PALETTES[`${key}/${which}/${hue}`] = cssOf(changes(shipped, blocksOf(configFor({ primary, contrast, colorMatch, [which]: hue }))))
+      }
     }
   }
 }
@@ -133,7 +138,7 @@ const html = `<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Poimandres Theme Builder</title>
   <!-- The palette on screen: the script swaps this for the chosen one. It opens on what ships. -->
-  <style id="palette">${PALETTES['lime/standard/unblended']}</style>
+  <style id="palette">${PALETTES['lime/standard/true']}</style>
   <!-- The custom-colour rows the script hides: the hues picked as primary, secondary or tertiary. -->
   <style id="picked"></style>
   <style>
@@ -225,6 +230,7 @@ const html = `<!doctype html>
     </div>`).join('\n    ')}
     <div class="checks">
       <label class="check" title="Keep primary, secondary and tertiary on different brand hues"><input type="checkbox" id="sw-unique" checked /> Unique colors</label>
+      <label class="check" title="Material Theme Builder's colorMatch. Checked, as shipped: colors stay true to their inputs. Unchecked: the tonal spot scheme."><input type="checkbox" id="sw-match" checked /> Color match</label>
       <label class="check" title="The custom colors' blend. Checked: blend: true, each is harmonized toward the primary. Unchecked: blend: false, as shipped, each is taken as given."><input type="checkbox" id="sw-blend" /> Blend custom colors</label>
     </div>
     <p class="summary" id="summary" aria-live="polite"></p>
@@ -252,7 +258,7 @@ const html = `<!doctype html>
     // tertiary are 'auto' (MD3 derives them from the primary) or a brand hue's
     // key; with Unique on, no two of the three share a brand hue.
     // Mode opens on the viewer's system setting.
-    const state = { primary: 'lime', secondary: 'auto', tertiary: 'auto', unique: true, mode: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', blend: false, contrast: 'standard' }
+    const state = { primary: 'lime', secondary: 'auto', tertiary: 'auto', unique: true, mode: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', match: true, blend: false, contrast: 'standard' }
     const PRIMARIES = ${JSON.stringify(PRIMARIES)}
     const cap = (word) => word[0].toUpperCase() + word.slice(1)
     // 'Primary (Lime)', 'Secondary (Cyan)', 'Tertiary (Auto)'.
@@ -301,12 +307,13 @@ const html = `<!doctype html>
     }
 
     function render() {
-      // The chosen palette: the one for the custom colors' blend, then what a
-      // seeded secondary or tertiary changes on top of it.
-      const key = state.primary + '/' + state.contrast
+      // The chosen palette, then what the custom colors' blend and a seeded
+      // secondary or tertiary change on top of it.
+      const key = state.primary + '/' + state.contrast + '/' + state.match
       const seeded = ['secondary', 'tertiary'].filter((which) => state[which] !== 'auto')
       const css = [
-        PALETTES[key + '/' + (state.blend ? 'blended' : 'unblended')],
+        PALETTES[key],
+        ...(state.blend ? [PALETTES[key + '/blend']] : []),
         ...seeded.map((which) => PALETTES[key + '/' + which + '/' + state[which]]),
       ].join('\\n')
       document.getElementById('palette').textContent = css
@@ -369,7 +376,7 @@ const html = `<!doctype html>
       mode: { light: 'm-light', dark: 'm-dark' },
     }
     // Checkbox → state: checked is true.
-    const switches = { unique: 'sw-unique', blend: 'sw-blend' }
+    const switches = { unique: 'sw-unique', match: 'sw-match', blend: 'sw-blend' }
     let lastMove = ''
     function update() {
       for (const [g, opts] of Object.entries(groups)) {
@@ -386,7 +393,7 @@ const html = `<!doctype html>
       const role = (which) => (state[which] === 'auto' ? which + ' from the primary' : hueName(state[which]) + ' ' + which)
       document.getElementById('summary').textContent = [
         name + ' (' + hex + ') primary, ' + role('secondary') + ', ' + role('tertiary') + '.',
-        { standard: 'Standard', medium: 'Medium', high: 'High' }[state.contrast] + ' contrast, ' + (state.blend ? 'custom colors blended toward the primary.' : 'custom colors unblended.'),
+        { standard: 'Standard', medium: 'Medium', high: 'High' }[state.contrast] + ' contrast, ' + (state.match ? 'color match, ' : 'tonal spot, ') + (state.blend ? 'custom colors blended toward the primary.' : 'custom colors unblended.'),
         lastMove,
       ].filter(Boolean).join(' ')
       render()
