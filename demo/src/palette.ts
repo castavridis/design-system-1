@@ -1,91 +1,29 @@
 /**
- * What the page needs on top of `<Mtb>`: the shipped palette's overrides, and
- * the tonal ramps the brand swatches compare against.
- *
- * `<Mtb>` computes the palette `builder()` gives, but the palette that ships
- * departs from it — greyer neutrals, and custom colours that follow contrast
- * (see `scripts/palette-overrides.mjs`). So the page applies the same
- * overrides `scripts/build.mjs` bakes, as a stylesheet after `<Mtb>`'s, and
- * the poster paints what ships.
+ * What the brand swatches need on top of `<Mtb>`: the tonal ramps of the
+ * palette it computes, to find the step nearest each brand hex.
  */
 import { builder, type MtbConfig } from 'material-theme-builder'
-import { contrastCustomColours, overrideCssBlock, overridePalettes, tintedNeutralPalettes } from '../../scripts/palette-overrides.mjs'
-
-type Block = Record<string, string>
-
-/** `toCss()` emits exactly one `:root` and one `.dark` block, as flat `{ '--name': value }` maps. */
-function parseBlocks(css: string): Record<':root' | '.dark', Block> {
-  const blocks = Object.fromEntries(
-    [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].map(([, selector, body]) => [
-      selector.trim(),
-      Object.fromEntries(
-        body
-          .split(';')
-          .map((declaration) => declaration.trim())
-          .filter(Boolean)
-          .map((declaration) => {
-            const colon = declaration.indexOf(':')
-            return [declaration.slice(0, colon).trim(), declaration.slice(colon + 1).trim()]
-          })
-      ),
-    ])
-  )
-  if (!blocks[':root'] || !blocks['.dark']) throw new Error('toCss() no longer emits `:root` and `.dark`')
-  return blocks as Record<':root' | '.dark', Block>
-}
-
-/** Only the declarations `next` changes in `block`. */
-const changed = (block: Block, next: Block) => Object.fromEntries(Object.entries(next).filter(([name, value]) => block[name] !== value))
-
-const rule = (selector: string, block: Block) =>
-  `${selector} { ${Object.entries(block)
-    .map(([name, value]) => `${name}:${value};`)
-    .join(' ')} }`
 
 export type Ramp = { tone: number; hex: string }[]
 
 /**
- * For one `<Mtb>` config: the stylesheet that turns its output into the
- * shipped palette, and every tonal ramp of the result.
- *
- * `tint` is "Tint neutrals": the shipped pair of neutral ramps swapped, neutral
- * taking the primary's hue and neutral-variant going grey.
- *
- * The stylesheet repeats `<Mtb>`'s own selectors, `:root` and `.dark`, so it
- * applies wherever `<Mtb>`'s does — including a poster `Scheme theme="dark"`,
- * whose `.dark` re-declares every shade.
+ * Every `--md-ref-palette-*` ramp `builder()` gives `config`, in tone order.
+ * The shades are scheme-independent, so `.dark` repeats them; the first of each
+ * name is the one.
  */
-export function shippedPalette(config: MtbConfig, { tint }: { tint: boolean }) {
+export function rampsOf(config: MtbConfig) {
   const { source, ...options } = config
-  const blocks = parseBlocks(builder(source, options).toCss())
-  const palettes = tint ? tintedNeutralPalettes(config) : overridePalettes(config)
-
-  // Above standard contrast some roles are raw colours between shades; the
-  // overrides need the contrast and the mode to redraw those at their tone.
-  const light = { source, scheme: config.scheme, contrast: config.contrast, isDark: false }
-  const dark = { ...light, isDark: true }
-  // The builder gives custom colours no contrast; this gives them the primary's.
-  const root: Block = contrastCustomColours(overrideCssBlock(blocks[':root'], palettes, light), config, palettes, light)
-  const darkBlock: Block = contrastCustomColours(overrideCssBlock(blocks['.dark'], palettes, dark), config, palettes, dark)
-
   const ramps: Record<string, Ramp> = {}
-  for (const [name, hex] of Object.entries(root)) {
-    const match = name.match(/^--md-ref-palette-(.+)-(\d+)$/)
-    if (match) (ramps[match[1]] ??= []).push({ tone: Number(match[2]), hex })
+  const seen = new Set<string>()
+  for (const [name, palette, tone, hex] of builder(source, options)
+    .toCss()
+    .matchAll(/--md-ref-palette-(.+?)-(\d+):\s*(#[0-9a-fA-F]{6})/g)) {
+    if (seen.has(name)) continue
+    seen.add(name)
+    ;(ramps[palette] ??= []).push({ tone: Number(tone), hex })
   }
   for (const ramp of Object.values(ramps)) ramp.sort((a, b) => a.tone - b.tone)
-
-  // Only what differs from `<Mtb>`'s output — but on `<html class="dark">`,
-  // which matches both selectors, this sheet's `:root` comes after `<Mtb>`'s
-  // `.dark` and would win. So `.dark` restates every name `:root` sets.
-  const lightChanges = changed(blocks[':root'], root)
-  const darkNames = [...new Set([...Object.keys(lightChanges), ...Object.keys(changed(blocks['.dark'], darkBlock))])]
-  const darkChanges = Object.fromEntries(darkNames.map((name) => [name, darkBlock[name]]))
-
-  return {
-    css: [rule(':root', lightChanges), rule('.dark', darkChanges)].join('\n'),
-    ramps,
-  }
+  return ramps
 }
 
 // Perceptual colour distance, to find the ramp step closest to a brand hex.

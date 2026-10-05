@@ -9,13 +9,20 @@
 import { Mtb, Poster, Scheme, Shades } from 'material-theme-builder/react'
 import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react'
 import { pmndrsMtb } from '../../registry/md3-base/md3'
-import { ink, nearestIn, shippedPalette } from './palette'
+import { ink, nearestIn, rampsOf } from './palette'
 
 /** The seven brand colours, in the seed's order — lime first, since it is the one that ships. */
 const BRAND = pmndrsMtb.customColors
 const HUES = BRAND.map(({ name }) => name)
 const hexOf = (hue: string) => BRAND.find(({ name }) => name === hue)!.hex
 const cap = (word: string) => word[0].toUpperCase() + word.slice(1)
+
+/**
+ * "Tint neutrals": a neutral seed at the lime's hue (124), chroma 48, in place of
+ * the shipped warm grey. Under Color match a neutral ramp gets an eighth of its
+ * seed's chroma, so surfaces and body text go to the lime's hue at chroma 6.
+ */
+const TINTED_NEUTRAL = '#b1cc63'
 
 /** MD3's three contrast levels. Standard is what the registry ships. */
 const CONTRASTS = { standard: 0, medium: 0.5, high: 1 }
@@ -33,7 +40,7 @@ type State = {
   tertiary: string
   /** Keep primary, secondary and tertiary on different brand hues. */
   unique: boolean
-  /** Swap the shipped neutrals: neutral takes the primary's hue, neutral-variant goes grey. */
+  /** Seed neutral at the lime's hue instead of the shipped warm grey. */
   tint: boolean
   /** Harmonize the brand colours toward the primary, instead of keeping their exact hex as the registry ships. */
   harmonize: boolean
@@ -101,13 +108,14 @@ export function App() {
       ...pmndrsMtb,
       source: hexOf(state.primary),
       contrast: CONTRASTS[state.contrast],
+      neutral: state.tint ? TINTED_NEUTRAL : pmndrsMtb.neutral,
       secondary: state.secondary === 'auto' ? undefined : hexOf(state.secondary),
       tertiary: state.tertiary === 'auto' ? undefined : hexOf(state.tertiary),
       customColors: BRAND.map((color) => ({ ...color, blend: state.harmonize })),
     }),
-    [state.primary, state.contrast, state.secondary, state.tertiary, state.harmonize]
+    [state.primary, state.contrast, state.tint, state.secondary, state.tertiary, state.harmonize]
   )
-  const palette = useMemo(() => shippedPalette(config, { tint: state.tint }), [config, state.tint])
+  const ramps = useMemo(() => rampsOf(config), [config])
 
   // 'Primary (Lime)', 'Secondary (Auto)'.
   const roleTitle = (which: 'primary' | Role) => `${cap(which)} (${hueName(state[which])})`
@@ -120,9 +128,9 @@ export function App() {
   const customs = config.customColors.filter(({ name }) => !picked.has(name))
 
   const nearest = [
-    { label: roleTitle('primary'), authored: config.source, ...nearestIn(config.source, palette.ramps.primary) },
-    ...seeded.map((which) => ({ label: roleTitle(which), authored: hexOf(state[which]), ...nearestIn(hexOf(state[which]), palette.ramps[which]) })),
-    ...customs.map(({ name, hex }) => ({ label: cap(name), authored: hex, ...nearestIn(hex, palette.ramps[name]) })),
+    { label: roleTitle('primary'), authored: config.source, ...nearestIn(config.source, ramps.primary) },
+    ...seeded.map((which) => ({ label: roleTitle(which), authored: hexOf(state[which]), ...nearestIn(hexOf(state[which]), ramps[which]) })),
+    ...customs.map(({ name, hex }) => ({ label: cap(name), authored: hex, ...nearestIn(hex, ramps[name]) })),
   ]
 
   const taken = (which: Role) => (state.unique ? [state.primary, state[which === 'secondary' ? 'tertiary' : 'secondary']] : [])
@@ -140,9 +148,6 @@ export function App() {
 
   return (
     <Mtb {...config}>
-      {/* After `<Mtb>`'s own stylesheet, so it wins: the shipped palette's overrides. */}
-      <style>{palette.css}</style>
-
       <aside
         aria-labelledby="builder-title"
         className="fixed top-4 left-4 z-3 grid max-h-[calc(100vh-32px)] w-81 gap-3.5 overflow-y-auto rounded-[14px] border border-outline-variant bg-surface-container-high p-4.5 font-mono shadow-[0_12px_32px_rgba(0,0,0,.18)] max-[900px]:static max-[900px]:mx-4 max-[900px]:mt-4 max-[900px]:max-h-none max-[900px]:w-auto max-[900px]:shadow-none"
@@ -178,7 +183,7 @@ export function App() {
             Unique colors
           </Check>
           <Check
-            title="Swap the neutrals: surfaces and text take the primary's hue, outlines and secondary text go grey"
+            title="Seed the neutral at the lime's hue: surfaces and body text take a hint of it, instead of the warm grey that ships"
             checked={state.tint}
             onChange={(tint) => change({ tint })}
           >
@@ -210,8 +215,8 @@ export function App() {
 
         <Heading>Tonal reference ramps (--md-ref-palette-*)</Heading>
         <Legend>
-          Scheme-independent tones the roles alias onto — identical in light and dark. Neutral is grey; Neutral-Variant carries a hint of the primary.
-          {state.tint && ' Tint neutrals swaps the pair: Neutral takes the primary’s hue and Neutral-Variant goes grey.'}
+          Scheme-independent tones the roles alias onto — identical in light and dark. Neutral is a warm grey; Neutral-Variant carries a hint of the lime.
+          {state.tint && ' Tint neutrals seeds Neutral at the lime’s hue too.'}
         </Legend>
         {/* Every ramp, even where a brand colour repeats as the primary, secondary or tertiary. */}
         <Poster>

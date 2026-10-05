@@ -29,7 +29,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { builder } from 'material-theme-builder'
 import pkg from '../package.json' with { type: 'json' }
 import { pmndrsMtb } from '../registry/md3-base/md3.ts'
-import { overrideCssBlock, overrideFigmaTokens, overridePalettes } from './palette-overrides.mjs'
 
 /**
  * Refs are not inherited, so a cross-item dependency carries its own — and it
@@ -57,7 +56,7 @@ const items = [
     description:
       "The MD3 colour layer without any colours: the package's Tailwind plugin, its shadcn remap, and the pmndrs seed. Install this only if you compute the palette yourself — otherwise install `md3`, which supplies one.",
     author: 'pmndrs',
-    dependencies: ['material-theme-builder@^5.0.0'],
+    dependencies: ['material-theme-builder@^5.2.0'],
     files: [{ path: 'registry/md3-base/md3.ts', type: 'registry:lib' }],
     /**
      * Two lines the package answers for, rather than copies of what it ships.
@@ -178,24 +177,19 @@ function parseBlocks(css) {
  *
  * One theme for both outputs, CSS and Figma — they are the same palette and have
  * no business being computed twice.
+ *
+ * And nothing on top of it: what ships is `builder(pmndrsMtb)` as it comes, so a
+ * site that computes the palette at runtime with the same seed gets the same
+ * colours. `registry.test.mjs` holds the bake to that.
  */
 const { source, ...options } = pmndrsMtb
 const theme = builder(source, options)
 
-/**
- * The one place the bake departs from `builder()`: the neutral ramps at a lower
- * chroma. Applied to the CSS and the Figma tokens
- * alike, so the two still agree with each other — what they no longer match is
- * a runtime `builder(pmndrsMtb)`. See `palette-overrides.mjs` for why, and for
- * what retires it.
- */
-const overrides = overridePalettes(pmndrsMtb)
-
 function bakePalette() {
   const blocks = parseBlocks(theme.toCss())
   if (!blocks[':root'] || !blocks['.dark']) throw new Error('toCss() no longer emits `:root` and `.dark`')
-  const light = overrideCssBlock(blocks[':root'], overrides)
-  const dark = overrideCssBlock(blocks['.dark'], overrides)
+  const light = blocks[':root']
+  const dark = blocks['.dark']
 
   // The 168 `--md-ref-palette-*` tonal shades are scheme-independent, so `.dark`
   // re-emits them unchanged. `.dark` and `:root` both match `<html>`, so
@@ -248,13 +242,8 @@ for (const doc of docs) {
  * renders, not a close one. That is a property of `toFigmaTokens()` and
  * `toCss()` sharing a context, so it holds by construction; the `toJson()`
  * divergence documented above is the reminder of what it would cost to lose it.
- *
- * The overrides are the exception to "by construction": they are applied to
- * each output separately, so `registry.test.mjs` checks every role resolves to
- * the same hex in both.
  */
 for (const [name, tokens] of Object.entries(theme.toFigmaTokens())) {
-  overrideFigmaTokens(tokens, overrides)
   outputs.push([new URL(`../figma/${name}`, import.meta.url), JSON.stringify(tokens, null, 2) + '\n'])
 }
 
