@@ -10,8 +10,7 @@
     "noEmit": true,
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
-    "allowJs": true,
-    "paths": { "@/*": ["./demo/src/*"] }
+    "allowJs": true
   },
   "include": ["registry", "scripts", "demo/src", "vite.config.ts"]
 }

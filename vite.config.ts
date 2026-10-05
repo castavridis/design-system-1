@@ -8,9 +8,6 @@ const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 export default defineConfig({
   root: here('./demo'),
   plugins: [tailwindcss()],
-  resolve: {
-    alias: { '@': here('./demo/src') },
-  },
   /**
    * `registry/md3-base/md3.ts` reads `THEME_*` overrides from `process.env`,
    * which a browser has none of. Like `scripts/build.mjs`, the page shows the

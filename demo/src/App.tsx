@@ -3,13 +3,11 @@
  *
  * The palette is computed live by `<Mtb>` from the real seed, `pmndrsMtb` —
  * imported, not mirrored — and painted by Material Theme Builder's own poster
- * (`components/mtb/scheme.tsx`, installed with `shadcn add`). The controls are
- * plain state feeding `<Mtb>`'s props; nothing is precomputed.
+ * (`Poster`, `Scheme` and `Shades`, from `material-theme-builder/react`). The
+ * controls are plain state feeding `<Mtb>`'s props; nothing is precomputed.
  */
-import { Mtb } from 'material-theme-builder/react'
+import { Mtb, Poster, Scheme, Shades } from 'material-theme-builder/react'
 import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from 'react'
-import { Poster, Scheme, Shades } from '@/components/mtb/scheme'
-import { cn } from '@/lib/utils'
 import { pmndrsMtb } from '../../registry/md3-base/md3'
 import { ink, nearestIn, shippedPalette } from './palette'
 
@@ -299,7 +297,7 @@ function Heading({ children }: { children: ReactNode }) {
 }
 
 function Legend({ className, ...props }: ComponentProps<'p'>) {
-  return <p className={cn('mt-0 mb-3 text-xs text-on-surface-variant', className)} {...props} />
+  return <p className={`mb-3 text-xs text-on-surface-variant ${className ?? ''}`} {...props} />
 }
 
 function Caption({ children }: { children: ReactNode }) {
