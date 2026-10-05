@@ -34,22 +34,14 @@ const cap = (word) => word[0].toUpperCase() + word.slice(1)
 const PRIMARIES = pmndrsMtb.customColors.map(({ name, hex }) => [name, cap(name), hex])
 const hexOf = (key) => PRIMARIES.find(([k]) => k === key)[2]
 
-/**
- * "Tint neutrals": a neutral seed at the lime's hue (124), chroma 48, in place of
- * the shipped warm grey. Under Color match a neutral ramp gets an eighth of its
- * seed's chroma, so surfaces and body text go to the lime's hue at chroma 6.
- */
-const TINTED_NEUTRAL = '#b1cc63'
-
 // MD3's three contrast levels. Standard is what the registry ships.
 const CONTRASTS = [['standard', 0, 'Standard'], ['medium', 0.5, 'Medium'], ['high', 1, 'High']]
 
 // `pmndrsMtb` with the page's choices on top; every choice left out is as shipped.
-const configFor = ({ primary, contrast, harmonize = false, tint = false, secondary, tertiary }) => ({
+const configFor = ({ primary, contrast, harmonize = false, secondary, tertiary }) => ({
   ...pmndrsMtb,
   source: hexOf(primary),
   contrast,
-  ...(tint ? { neutral: TINTED_NEUTRAL } : {}),
   ...(secondary ? { secondary: hexOf(secondary) } : {}),
   ...(tertiary ? { tertiary: hexOf(tertiary) } : {}),
   customColors: pmndrsMtb.customColors.map((color) => ({ ...color, blend: harmonize })),
@@ -93,11 +85,10 @@ const cssOf = (blocks) => {
 /**
  * The page's stylesheets, keyed `primary/contrast/…`. Per primary and contrast,
  * one full palette per fidelity (exact, as the registry ships, or harmonized),
- * and on top of it what each other choice changes: tinted neutrals, and each
- * brand hue as the secondary or the tertiary seed. A palette per combination
- * would be 7 × 3 × 2 × 2 × 8 × 8; these are separable instead — a secondary
- * seed moves only the secondary roles, a tertiary seed only the tertiary ones,
- * the neutral seed only the neutral ones — so the page stacks them.
+ * and on top of it what each brand hue changes as the secondary or the
+ * tertiary seed. A palette per combination would be 7 × 3 × 2 × 8 × 8; these
+ * are separable instead — a secondary seed moves only the secondary roles, a
+ * tertiary seed only the tertiary ones — so the page stacks them.
  */
 const PALETTES = {}
 for (const [primary] of PRIMARIES) {
@@ -106,7 +97,6 @@ for (const [primary] of PRIMARIES) {
     const shipped = blocksOf(configFor({ primary, contrast }))
     PALETTES[`${key}/exact`] = cssOf(shipped)
     PALETTES[`${key}/harmonized`] = cssOf(blocksOf(configFor({ primary, contrast, harmonize: true })))
-    PALETTES[`${key}/tint`] = cssOf(changes(shipped, blocksOf(configFor({ primary, contrast, tint: true }))))
     for (const which of ['secondary', 'tertiary']) {
       for (const [hue] of PRIMARIES) PALETTES[`${key}/${which}/${hue}`] = cssOf(changes(shipped, blocksOf(configFor({ primary, contrast, [which]: hue }))))
     }
@@ -235,7 +225,6 @@ const html = `<!doctype html>
     </div>`).join('\n    ')}
     <div class="checks">
       <label class="check" title="Keep primary, secondary and tertiary on different brand hues"><input type="checkbox" id="sw-unique" checked /> Unique colors</label>
-      <label class="check" title="Seed the neutral at the lime's hue: surfaces and body text take a hint of it, instead of the warm grey that ships"><input type="checkbox" id="sw-tint" /> Tint neutrals</label>
       <label class="check" title="Checked: brand colors are harmonized toward the primary. Unchecked: they keep their exact hex."><input type="checkbox" id="sw-harmonize" /> Harmonize colors</label>
     </div>
     <p class="summary" id="summary" aria-live="polite"></p>
@@ -243,7 +232,7 @@ const html = `<!doctype html>
   <main>
     ${schemeHtml}
     <h2>Tonal reference ramps (--md-ref-palette-*)</h2>
-    <p class="legend">Scheme-independent tones the roles alias onto — identical in light and dark. Neutral is a warm grey; Neutral-Variant carries a hint of the lime.<span id="tint-note" hidden> Tint neutrals seeds Neutral at the lime’s hue too.</span></p>
+    <p class="legend">Scheme-independent tones the roles alias onto — identical in light and dark. Neutral is a warm grey; Neutral-Variant carries a hint of the lime.</p>
     ${shadesHtml}
     <h2>Poimandres brand colors → nearest MD3 ramp step</h2>
     <p class="legend">For each brand colour, the closest step in its own ramp (by CIELAB ΔE). Each swatch puts the brand hex (left) against the generated MD3 step (right); the big number is that step’s tone.</p>
@@ -263,7 +252,7 @@ const html = `<!doctype html>
     // tertiary are 'auto' (MD3 derives them from the primary) or a brand hue's
     // key; with Unique on, no two of the three share a brand hue.
     // Mode opens on the viewer's system setting.
-    const state = { primary: 'lime', secondary: 'auto', tertiary: 'auto', unique: true, mode: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', tint: false, match: true, contrast: 'standard' }
+    const state = { primary: 'lime', secondary: 'auto', tertiary: 'auto', unique: true, mode: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', match: true, contrast: 'standard' }
     const PRIMARIES = ${JSON.stringify(PRIMARIES)}
     const cap = (word) => word[0].toUpperCase() + word.slice(1)
     // 'Primary (Lime)', 'Secondary (Cyan)', 'Tertiary (Auto)'.
@@ -312,20 +301,18 @@ const html = `<!doctype html>
     }
 
     function render() {
-      // The chosen palette: the fidelity's, then what tinted neutrals and a
-      // seeded secondary or tertiary change on top of it.
+      // The chosen palette: the fidelity's, then what a seeded secondary or
+      // tertiary changes on top of it.
       const key = state.primary + '/' + state.contrast
       const seeded = ['secondary', 'tertiary'].filter((which) => state[which] !== 'auto')
       const css = [
         PALETTES[key + '/' + (state.match ? 'exact' : 'harmonized')],
-        ...(state.tint ? [PALETTES[key + '/tint']] : []),
         ...seeded.map((which) => PALETTES[key + '/' + which + '/' + state[which]]),
       ].join('\\n')
       document.getElementById('palette').textContent = css
       document.documentElement.classList.toggle('dark', state.mode === 'dark')
       document.getElementById('scheme-light').hidden = state.mode !== 'light'
       document.getElementById('scheme-dark').hidden = state.mode !== 'dark'
-      document.getElementById('tint-note').hidden = !state.tint
 
       // The primary's hue, and a brand hue picked as secondary or tertiary, show
       // as that role instead, so they drop out of the brand swatches and the
@@ -383,7 +370,7 @@ const html = `<!doctype html>
     }
     // Checkbox → state. "Harmonize colors" is the inverse of colour match:
     // checked means match = false.
-    const switches = { unique: ['sw-unique', false], tint: ['sw-tint', false], match: ['sw-harmonize', true] }
+    const switches = { unique: ['sw-unique', false], match: ['sw-harmonize', true] }
     let lastMove = ''
     function update() {
       for (const [g, opts] of Object.entries(groups)) {
@@ -400,7 +387,7 @@ const html = `<!doctype html>
       const role = (which) => (state[which] === 'auto' ? which + ' from the primary' : hueName(state[which]) + ' ' + which)
       document.getElementById('summary').textContent = [
         name + ' (' + hex + ') primary, ' + role('secondary') + ', ' + role('tertiary') + '.',
-        { standard: 'Standard', medium: 'Medium', high: 'High' }[state.contrast] + ' contrast' + (state.tint ? ', tinted neutrals' : '') + ', ' + (state.match ? 'exact brand colors.' : 'brand colors harmonized toward the primary.'),
+        { standard: 'Standard', medium: 'Medium', high: 'High' }[state.contrast] + ' contrast' + ', ' + (state.match ? 'exact brand colors.' : 'brand colors harmonized toward the primary.'),
         lastMove,
       ].filter(Boolean).join(' ')
       render()
