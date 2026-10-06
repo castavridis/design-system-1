@@ -7,8 +7,8 @@ import type { MtbConfig } from 'material-theme-builder'
  * and typography, not colour — moving `source` here is what actually moves the
  * rendered palette.
  *
- * Every value is overridable per deployment through a `THEME_*` env var, so a
- * site can reseed without forking the file.
+ * Every colour, and the contrast, is overridable per deployment through a
+ * `THEME_*` env var, so a site can reseed without forking the file.
  *
  * Read from a React Server Component (a Next.js root layout, typically): the
  * non-`NEXT_PUBLIC_` vars below are only substituted on the server.
@@ -42,11 +42,30 @@ import type { MtbConfig } from 'material-theme-builder'
 export const pmndrsMtb = {
   /** poimandres lime — the primary (also exposed as `lime` below). */
   source: process.env.THEME_PRIMARY || '#CAF543',
-  // `vibrant` keeps the seed's chroma (neon); `tonalSpot` would clamp it to ~36.
-  scheme: (process.env.THEME_SCHEME || 'vibrant') as MtbConfig['scheme'],
+  /**
+   * Material Theme Builder's "Color match — Stay true to my color inputs": each
+   * core colour keeps its seed's chroma, and the seed itself lands in the
+   * container role. It replaces `scheme`, which is ignored while it is on —
+   * Color match is the Content variant, applied to each seed separately.
+   */
+  colorMatch: true,
   contrast: Number(process.env.THEME_CONTRAST) || 0,
-  /** Warm near-black / off-white — the pair that anchors the neutral ramp. */
-  neutral: process.env.THEME_NEUTRAL || '#36342F',
+  /**
+   * The two neutral seeds look nothing like the ramps they produce, and that is
+   * expected. Under Color match a neutral ramp takes its seed's hue at a fraction
+   * of its chroma: chroma / 8 for neutral, chroma / 8 + 4 for neutral-variant.
+   * So a seed carries 8x the chroma you want back.
+   *
+   * - neutral `#c1b793`, the warm grey's hue (99) at chroma 16, gives the
+   *   surfaces and body text a ramp at chroma 2: a warm grey.
+   * - neutral-variant `#495720`, the lime's hue (124) at chroma 32, gives the
+   *   outlines and secondary text a ramp at chroma 8 (32 / 8 + 4): a hint of
+   *   the primary.
+   *
+   * A seed's tone does not matter, only its hue and chroma.
+   */
+  neutral: process.env.THEME_NEUTRAL || '#c1b793',
+  neutralVariant: process.env.THEME_NEUTRAL_VARIANT || '#495720',
   /** red. */
   error: process.env.THEME_ERROR || '#FF4980',
   /**
