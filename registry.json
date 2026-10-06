@@ -10,7 +10,7 @@
       "description": "The MD3 colour layer without any colours: the package's Tailwind plugin, its shadcn remap, and the pmndrs seed. Install this only if you compute the palette yourself — otherwise install `md3`, which supplies one.",
       "author": "pmndrs",
       "dependencies": [
-        "material-theme-builder@^5.2.0"
+        "material-theme-builder@^5.2.1"
       ],
       "files": [
         {

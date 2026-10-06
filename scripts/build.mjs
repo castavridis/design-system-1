@@ -56,7 +56,7 @@ const items = [
     description:
       "The MD3 colour layer without any colours: the package's Tailwind plugin, its shadcn remap, and the pmndrs seed. Install this only if you compute the palette yourself — otherwise install `md3`, which supplies one.",
     author: 'pmndrs',
-    dependencies: ['material-theme-builder@^5.2.0'],
+    dependencies: ['material-theme-builder@^5.2.1'],
     files: [{ path: 'registry/md3-base/md3.ts', type: 'registry:lib' }],
     /**
      * Two lines the package answers for, rather than copies of what it ships.
