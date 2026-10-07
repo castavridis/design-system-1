@@ -25,9 +25,11 @@ import type { MtbConfig } from 'material-theme-builder'
  * ```
  *
  * `blend: true` harmonizes them against the seed above, so they stay yours and
- * still belong to the pmndrs palette. Then name them in the `@plugin` line this
- * item added to your CSS. It is installed in statement form
- * (`@plugin '...';`); give it a body — that is all the wiring there is:
+ * still belong to the pmndrs palette. That `customColors` replaces the seven
+ * shipped below; spread `...pmndrsMtb.customColors` into it to keep them.
+ * Then name them in the `@plugin` line this item added to your CSS. It is
+ * installed in statement form (`@plugin '...';`); give it a body — that is
+ * all the wiring there is:
  *
  * ```css
  * @plugin "material-theme-builder/tailwind" {

@@ -3,3 +3,4 @@ public/r
 tmp
 .devcontainer
 .DS_Store
+docs/out
